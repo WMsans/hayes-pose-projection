@@ -99,6 +99,47 @@ TEST_CASE("render_white reports an image export failure") {
   std::filesystem::remove_all(directory, error);
 }
 
+TEST_CASE("render_panel composites equally sized PNGs side by side") {
+  const auto directory = test_output_directory();
+  const auto left_path = directory / "left.png";
+  const auto right_path = directory / "right.png";
+  const auto panel_path = directory / "panel.png";
+
+  Image left = GenImageColor(3, 2, RED);
+  Image right = GenImageColor(3, 2, BLUE);
+  REQUIRE(IsImageValid(left));
+  REQUIRE(IsImageValid(right));
+  REQUIRE(ExportImage(left, left_path.string().c_str()));
+  REQUIRE(ExportImage(right, right_path.string().c_str()));
+  UnloadImage(right);
+  UnloadImage(left);
+
+  pose::render_panel(left_path, right_path, panel_path);
+
+  Image panel = LoadImage(panel_path.string().c_str());
+  REQUIRE(IsImageValid(panel));
+  CHECK(panel.width == 6);
+  CHECK(panel.height == 2);
+  CHECK(GetImageColor(panel, 0, 0).r == RED.r);
+  CHECK(GetImageColor(panel, 0, 0).b == RED.b);
+  CHECK(GetImageColor(panel, 5, 0).r == BLUE.r);
+  CHECK(GetImageColor(panel, 5, 0).b == BLUE.b);
+  UnloadImage(panel);
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("render_overlay skips a missing frame without creating output") {
+  const auto directory = test_output_directory();
+  const auto output = directory / "overlay.png";
+
+  pose::render_overlay({}, directory / "missing.png", output);
+
+  CHECK_FALSE(std::filesystem::exists(output));
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
 TEST_CASE("project_frame LookAt projects all joints with challenge intrinsics") {
   const auto uv = pose::project_frame(centered_frame(), pose::Mode::LookAt, {}, 1000.0);
 

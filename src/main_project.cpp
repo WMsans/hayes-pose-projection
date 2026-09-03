@@ -67,9 +67,20 @@ int main(int argc, char** argv) try {
 
   OffscreenScope offscreen;
   for (std::size_t i = 0; i < frames.size(); ++i) {
+    const std::string name = frame_name(i);
     const auto mode = (opt.mode == "gt") ? pose::Mode::Gt : pose::Mode::LookAt;
     const auto uv = pose::project_frame(frames[i], mode, cameras, focal);
-    pose::render_white(uv, opt.out / "white" / (frame_name(i) + ".png"));
+
+    const auto white_png = opt.out / "white" / (name + ".png");
+    const auto overlay_png = opt.out / "overlay" / (name + ".png");
+    pose::render_white(uv, white_png);
+
+    // The overlay is only meaningful with the published calibration; a look-at
+    // overlay would place the skeleton at the image centre regardless of the photo.
+    const auto overlay_uv =
+        (opt.mode == "lookat") ? uv : pose::project_frame(frames[i], pose::Mode::Gt, cameras, focal);
+    pose::render_overlay(overlay_uv, opt.data / "frames" / (name + ".png"), overlay_png);
+    pose::render_panel(overlay_png, white_png, opt.out / "panel" / (name + ".png"));
   }
   std::cout << "wrote " << frames.size() << " white renders to " << (opt.out / "white") << "\n";
   return 0;

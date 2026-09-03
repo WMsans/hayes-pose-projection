@@ -22,4 +22,12 @@ void begin_offscreen();
 void end_offscreen();
 void render_white(const std::vector<glm::dvec2>& uv, const std::filesystem::path& out_png);
 
+// Draws the skeleton over the photograph. Skipped with a warning if the frame is missing.
+void render_overlay(const std::vector<glm::dvec2>& uv, const std::filesystem::path& frame_png,
+                    const std::filesystem::path& out_png);
+
+// Composites two equally sized PNGs side by side, echoing the challenge page's sample figure.
+void render_panel(const std::filesystem::path& left_png, const std::filesystem::path& right_png,
+                  const std::filesystem::path& out_png);
+
 }  // namespace pose

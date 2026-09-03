@@ -27,6 +27,23 @@ class RenderTextureScope {
   RenderTexture2D target_{};
 };
 
+class TextureScope {
+ public:
+  explicit TextureScope(Texture2D texture) : texture_(texture) {}
+  ~TextureScope() {
+    if (IsTextureValid(texture_)) UnloadTexture(texture_);
+  }
+
+  TextureScope(const TextureScope&) = delete;
+  TextureScope& operator=(const TextureScope&) = delete;
+
+  bool ready() const { return IsTextureValid(texture_); }
+  const Texture2D& get() const { return texture_; }
+
+ private:
+  Texture2D texture_{};
+};
+
 class TextureModeScope {
  public:
   explicit TextureModeScope(const RenderTexture2D& target) {
@@ -114,6 +131,60 @@ void render_white(const std::vector<glm::dvec2>& uv, const std::filesystem::path
   ImageFlipVertical(&image.get());  // render textures are bottom-up
   if (!ExportImage(image.get(), out_png.string().c_str()))
     throw std::runtime_error("failed to export render to '" + out_png.string() + "'");
+}
+
+void render_overlay(const std::vector<glm::dvec2>& uv, const std::filesystem::path& frame_png,
+                    const std::filesystem::path& out_png) {
+  if (!std::filesystem::exists(frame_png)) {
+    TraceLog(LOG_WARNING, "missing frame %s; skipping overlay", frame_png.string().c_str());
+    return;
+  }
+  if (!out_png.parent_path().empty()) std::filesystem::create_directories(out_png.parent_path());
+
+  TextureScope photo(LoadTexture(frame_png.string().c_str()));
+  if (!photo.ready()) throw std::runtime_error("failed to load frame '" + frame_png.string() + "'");
+
+  RenderTextureScope target(LoadRenderTexture(kImageSize, kImageSize));
+  if (!target.ready()) throw std::runtime_error("failed to allocate overlay render texture");
+  {
+    TextureModeScope texture_mode(target.get());
+    ClearBackground(BLACK);
+    DrawTexture(photo.get(), 0, 0, WHITE);
+    draw_skeleton_2d(uv, 4.0f, 1.0f);
+  }
+
+  ImageScope image(LoadImageFromTexture(target.get().texture));
+  if (!image.ready()) throw std::runtime_error("failed to read overlay render texture into image");
+  ImageFlipVertical(&image.get());  // render textures are bottom-up
+  if (!ExportImage(image.get(), out_png.string().c_str()))
+    throw std::runtime_error("failed to export overlay to '" + out_png.string() + "'");
+}
+
+void render_panel(const std::filesystem::path& left_png, const std::filesystem::path& right_png,
+                  const std::filesystem::path& out_png) {
+  if (!std::filesystem::exists(left_png) || !std::filesystem::exists(right_png)) return;
+  if (!out_png.parent_path().empty()) std::filesystem::create_directories(out_png.parent_path());
+
+  ImageScope left(LoadImage(left_png.string().c_str()));
+  ImageScope right(LoadImage(right_png.string().c_str()));
+  if (!left.ready() || !right.ready())
+    throw std::runtime_error("failed to load panel input image");
+  if (left.get().width != right.get().width || left.get().height != right.get().height)
+    throw std::runtime_error("panel input images must have equal dimensions");
+
+  ImageScope panel(GenImageColor(left.get().width + right.get().width, left.get().height, RAYWHITE));
+  if (!panel.ready()) throw std::runtime_error("failed to allocate panel image");
+  ImageDraw(&panel.get(), left.get(), Rectangle{0, 0, static_cast<float>(left.get().width),
+                                                 static_cast<float>(left.get().height)},
+            Rectangle{0, 0, static_cast<float>(left.get().width),
+                      static_cast<float>(left.get().height)}, WHITE);
+  ImageDraw(&panel.get(), right.get(), Rectangle{0, 0, static_cast<float>(right.get().width),
+                                                  static_cast<float>(right.get().height)},
+            Rectangle{static_cast<float>(left.get().width), 0,
+                      static_cast<float>(right.get().width), static_cast<float>(right.get().height)},
+            WHITE);
+  if (!ExportImage(panel.get(), out_png.string().c_str()))
+    throw std::runtime_error("failed to export panel to '" + out_png.string() + "'");
 }
 
 }  // namespace pose
