@@ -1,1 +1,8 @@
 .worktrees/
+build/
+data/
+out/
+report/*.pdf
+report/*.aux
+report/*.log
+report/*.out
