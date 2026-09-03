@@ -49,3 +49,14 @@ TEST_CASE("write_csv emits a header and quoted-free rows") {
   ss << in.rdbuf();
   CHECK(ss.str() == "a,b\n1,2\n3,4\n");
 }
+
+TEST_CASE("write_csv accepts a bare output path") {
+  const std::filesystem::path path = "test_analysis_bare.csv";
+  std::filesystem::remove(path);
+  pose::write_csv(path, {"value"}, {{"42"}});
+  std::ifstream in(path);
+  std::stringstream ss;
+  ss << in.rdbuf();
+  CHECK(ss.str() == "value\n42\n");
+  std::filesystem::remove(path);
+}

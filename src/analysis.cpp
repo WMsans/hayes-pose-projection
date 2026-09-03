@@ -54,7 +54,7 @@ std::string fixed(double value, int decimals) {
 
 void write_csv(const std::filesystem::path& path, const std::vector<std::string>& header,
                const std::vector<std::vector<std::string>>& rows) {
-  std::filesystem::create_directories(path.parent_path());
+  if (!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
   std::ofstream out(path, std::ios::binary);
   if (!out) throw std::runtime_error("cannot write " + path.string());
   for (std::size_t i = 0; i < header.size(); ++i) out << (i ? "," : "") << header[i];
