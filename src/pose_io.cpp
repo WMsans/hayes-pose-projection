@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 
 namespace pose {
 namespace {
@@ -49,7 +50,11 @@ std::vector<Frame> load_poses(const std::filesystem::path& path) {
 double load_focal(const std::filesystem::path& path) {
   std::ifstream in(path);
   double f = 0.0;
-  if (!in || !(in >> f) || !std::isfinite(f) || f <= 0.0)
+  if (!in || !(in >> f) || !std::isfinite(f) || f <= 0.0) {
+    throw std::runtime_error("bad focal length in " + path.string());
+  }
+  in >> std::ws;
+  if (in.peek() != std::char_traits<char>::eof())
     throw std::runtime_error("bad focal length in " + path.string());
   return f;
 }
@@ -59,11 +64,23 @@ std::vector<std::string> load_joint_names(const std::filesystem::path& path) {
   if (!in) throw std::runtime_error("cannot open " + path.string());
   std::vector<std::string> names;
   std::string line;
+  std::size_t line_no = 0;
   while (std::getline(in, line)) {
-    const auto a = line.find('\'');
-    const auto b = line.rfind('\'');
-    if (a == std::string::npos || b <= a) continue;
-    names.push_back(line.substr(a + 1, b - a - 1));
+    ++line_no;
+    if (line.find_first_not_of(" \t\r\n") == std::string::npos) continue;
+
+    std::istringstream ss(line);
+    int index = 0;
+    char quote = '\0';
+    std::string name;
+    if (!(ss >> index) || index < 0 || !(ss >> quote) || quote != '\'' ||
+        !std::getline(ss, name, '\'') || name.empty()) {
+      fail(path, line_no, "malformed joint-name record");
+    }
+    ss >> std::ws;
+    if (ss.peek() != std::char_traits<char>::eof())
+      fail(path, line_no, "trailing data in joint-name record");
+    names.push_back(std::move(name));
   }
   if (names.empty()) throw std::runtime_error("no joint names in " + path.string());
   return names;
