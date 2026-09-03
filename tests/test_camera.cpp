@@ -46,6 +46,14 @@ TEST_CASE("a point behind the camera is rejected, not silently clipped") {
   CHECK_THROWS_AS(pose::project({0.0, 0.0, -100.0}, ext, k, false), std::runtime_error);
 }
 
+TEST_CASE("a small positive depth is projected") {
+  pose::Extrinsics ext{glm::dmat3(1.0), glm::dvec3(0.0)};
+  pose::Intrinsics k{1000.0, 1000.0, 500.0, 500.0, {}, false};
+  const auto uv = pose::project({0.0, 0.0, 1e-7}, ext, k, false);
+  CHECK(uv.x == doctest::Approx(500.0));
+  CHECK(uv.y == doctest::Approx(500.0));
+}
+
 TEST_CASE("centroid averages all 14 joints") {
   pose::Frame f;
   for (auto& j : f.joints) j = {3.0, 6.0, 9.0};

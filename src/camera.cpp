@@ -42,7 +42,7 @@ glm::dvec3 centroid(const Frame& frame) {
 glm::dvec2 project(const glm::dvec3& world, const Extrinsics& ext, const Intrinsics& k,
                    bool apply_distortion) {
   const glm::dvec3 c = ext.rotation * world + ext.translation;
-  if (c.z <= 1e-6) throw std::runtime_error("point is at or behind the image plane");
+  if (c.z <= 0.0) throw std::runtime_error("point is at or behind the image plane");
 
   double x = c.x / c.z;
   double y = c.y / c.z;
