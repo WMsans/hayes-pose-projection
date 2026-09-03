@@ -1,6 +1,12 @@
 #include <doctest/doctest.h>
 
 #include <cstddef>
+#include <exception>
+#include <filesystem>
+#include <string>
+#include <system_error>
+
+#include <raylib.h>
 
 #include "render.hpp"
 
@@ -16,6 +22,82 @@ pose::Frame centered_frame() {
 }
 
 }  // namespace
+
+namespace {
+
+class OptionalOffscreen {
+ public:
+  OptionalOffscreen() {
+    try {
+      pose::begin_offscreen();
+      active_ = true;
+    } catch (const std::exception& e) {
+      reason_ = e.what();
+    }
+  }
+
+  ~OptionalOffscreen() {
+    if (active_) pose::end_offscreen();
+  }
+
+  bool active() const { return active_; }
+  const std::string& reason() const { return reason_; }
+
+ private:
+  bool active_{false};
+  std::string reason_;
+};
+
+std::filesystem::path test_output_directory() {
+  const auto directory = std::filesystem::temp_directory_path() / "hayes-pose-render-tests";
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+  std::filesystem::create_directories(directory);
+  return directory;
+}
+
+}  // namespace
+
+TEST_CASE("render_white writes a 1000x1000 RAYWHITE image for empty input") {
+  OptionalOffscreen offscreen;
+  if (!offscreen.active()) {
+    WARN("skipping optional render test");
+    return;
+  }
+
+  const auto directory = test_output_directory();
+  const auto output = directory / "white.png";
+  pose::render_white({}, output);
+
+  Image image = LoadImage(output.string().c_str());
+  REQUIRE(IsImageValid(image));
+  CHECK(image.width == pose::kImageSize);
+  CHECK(image.height == pose::kImageSize);
+  const Color corner = GetImageColor(image, 0, 0);
+  CHECK(corner.r == RAYWHITE.r);
+  CHECK(corner.g == RAYWHITE.g);
+  CHECK(corner.b == RAYWHITE.b);
+  CHECK(corner.a == RAYWHITE.a);
+  UnloadImage(image);
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("render_white reports an image export failure") {
+  OptionalOffscreen offscreen;
+  if (!offscreen.active()) {
+    WARN("skipping optional render test");
+    return;
+  }
+
+  const auto directory = test_output_directory();
+  const auto output_directory = directory / "not-an-image-file";
+  std::filesystem::create_directory(output_directory);
+  CHECK_THROWS_WITH(pose::render_white({}, output_directory),
+                    doctest::Contains("failed to export render"));
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
 
 TEST_CASE("project_frame LookAt projects all joints with challenge intrinsics") {
   const auto uv = pose::project_frame(centered_frame(), pose::Mode::LookAt, {}, 1000.0);

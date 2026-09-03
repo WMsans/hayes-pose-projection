@@ -3,11 +3,29 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "analysis.hpp"
 #include "render.hpp"
 
 namespace {
+
+class OffscreenScope {
+ public:
+  OffscreenScope() {
+    pose::begin_offscreen();
+    active_ = true;
+  }
+  ~OffscreenScope() noexcept {
+    if (active_) pose::end_offscreen();
+  }
+
+  OffscreenScope(const OffscreenScope&) = delete;
+  OffscreenScope& operator=(const OffscreenScope&) = delete;
+
+ private:
+  bool active_{false};
+};
 
 struct Options {
   std::filesystem::path data{"data/Pose"};
@@ -43,16 +61,16 @@ int main(int argc, char** argv) try {
 
   const auto frames = pose::load_poses(opt.data / "poses.txt");
   const double focal = pose::load_focal(opt.data / "focal.txt");
-  const auto cameras = pose::load_calibration("third_party/h36m/camera-parameters.json", "S1");
+  std::vector<pose::CalibratedCamera> cameras;
+  if (opt.mode == "gt")
+    cameras = pose::load_calibration("third_party/h36m/camera-parameters.json", "S1");
 
-  pose::begin_offscreen();
+  OffscreenScope offscreen;
   for (std::size_t i = 0; i < frames.size(); ++i) {
     const auto mode = (opt.mode == "gt") ? pose::Mode::Gt : pose::Mode::LookAt;
     const auto uv = pose::project_frame(frames[i], mode, cameras, focal);
     pose::render_white(uv, opt.out / "white" / (frame_name(i) + ".png"));
   }
-  pose::end_offscreen();
-
   std::cout << "wrote " << frames.size() << " white renders to " << (opt.out / "white") << "\n";
   return 0;
 } catch (const std::exception& e) {

@@ -21,3 +21,15 @@ set_tests_properties(unit PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(pose-project src/main_project.cpp)
 target_link_libraries(pose-project PRIVATE pose_core)
+
+add_test(NAME pose_project_rejects_invalid_mode
+  COMMAND ${CMAKE_COMMAND}
+    -DPOSE_PROJECT=$<TARGET_FILE:pose-project>
+    -DCASE=invalid-mode
+    -P ${CMAKE_SOURCE_DIR}/tests/check_pose_project_cli.cmake)
+
+add_test(NAME pose_project_reports_input_error
+  COMMAND ${CMAKE_COMMAND}
+    -DPOSE_PROJECT=$<TARGET_FILE:pose-project>
+    -DCASE=missing-input
+    -P ${CMAKE_SOURCE_DIR}/tests/check_pose_project_cli.cmake)

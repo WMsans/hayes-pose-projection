@@ -3,10 +3,65 @@
 #include <raylib.h>
 
 #include <stdexcept>
+#include <string>
 
 #include "draw.hpp"
 
 namespace pose {
+namespace {
+
+class RenderTextureScope {
+ public:
+  explicit RenderTextureScope(RenderTexture2D target) : target_(target) {}
+  ~RenderTextureScope() {
+    if (target_.id != 0) UnloadRenderTexture(target_);
+  }
+
+  RenderTextureScope(const RenderTextureScope&) = delete;
+  RenderTextureScope& operator=(const RenderTextureScope&) = delete;
+
+  bool ready() const { return IsRenderTextureValid(target_); }
+  const RenderTexture2D& get() const { return target_; }
+
+ private:
+  RenderTexture2D target_{};
+};
+
+class TextureModeScope {
+ public:
+  explicit TextureModeScope(const RenderTexture2D& target) {
+    BeginTextureMode(target);
+    active_ = true;
+  }
+  ~TextureModeScope() {
+    if (active_) EndTextureMode();
+  }
+
+  TextureModeScope(const TextureModeScope&) = delete;
+  TextureModeScope& operator=(const TextureModeScope&) = delete;
+
+ private:
+  bool active_{false};
+};
+
+class ImageScope {
+ public:
+  explicit ImageScope(Image image) : image_(image) {}
+  ~ImageScope() {
+    if (image_.data != nullptr) UnloadImage(image_);
+  }
+
+  ImageScope(const ImageScope&) = delete;
+  ImageScope& operator=(const ImageScope&) = delete;
+
+  bool ready() const { return IsImageValid(image_); }
+  Image& get() { return image_; }
+
+ private:
+  Image image_{};
+};
+
+}  // namespace
 
 std::vector<glm::dvec2> project_frame(const Frame& frame, Mode mode,
                                       const std::vector<CalibratedCamera>& cameras, double focal) {
@@ -31,25 +86,34 @@ void begin_offscreen() {
   SetTraceLogLevel(LOG_WARNING);
   SetConfigFlags(FLAG_WINDOW_HIDDEN | FLAG_MSAA_4X_HINT);
   InitWindow(kImageSize, kImageSize, "pose-project");
-  if (!IsWindowReady())
+  if (!IsWindowReady()) {
+    CloseWindow();
     throw std::runtime_error("no GL context: re-run under 'xvfb-run -a ./build/pose-project ...'");
+  }
 }
 
 void end_offscreen() { CloseWindow(); }
 
 void render_white(const std::vector<glm::dvec2>& uv, const std::filesystem::path& out_png) {
   if (!out_png.parent_path().empty()) std::filesystem::create_directories(out_png.parent_path());
-  RenderTexture2D target = LoadRenderTexture(kImageSize, kImageSize);
-  BeginTextureMode(target);
-  ClearBackground(RAYWHITE);
-  draw_skeleton_2d(uv, 4.0f, 1.0f);
-  EndTextureMode();
 
-  Image img = LoadImageFromTexture(target.texture);
-  ImageFlipVertical(&img);  // render textures are bottom-up
-  ExportImage(img, out_png.string().c_str());
-  UnloadImage(img);
-  UnloadRenderTexture(target);
+  RenderTextureScope target(LoadRenderTexture(kImageSize, kImageSize));
+  if (!target.ready())
+    throw std::runtime_error("failed to allocate render texture");
+
+  {
+    TextureModeScope texture_mode(target.get());
+    ClearBackground(RAYWHITE);
+    draw_skeleton_2d(uv, 4.0f, 1.0f);
+  }
+
+  ImageScope image(LoadImageFromTexture(target.get().texture));
+  if (!image.ready())
+    throw std::runtime_error("failed to read render texture into image");
+
+  ImageFlipVertical(&image.get());  // render textures are bottom-up
+  if (!ExportImage(image.get(), out_png.string().c_str()))
+    throw std::runtime_error("failed to export render to '" + out_png.string() + "'");
 }
 
 }  // namespace pose
