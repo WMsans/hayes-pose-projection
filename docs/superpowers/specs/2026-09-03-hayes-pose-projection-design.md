@@ -66,7 +66,8 @@ Libraries, all pulled by CMake `FetchContent` so nothing is installed system-wid
 
 | Library | Purpose |
 | --- | --- |
-| raylib | offscreen rendering and PNG export |
+| raylib | offscreen rendering, PNG export, and the interactive explorer |
+| raygui | explorer UI widgets (sliders, toggles, frame scrubber) |
 | glm | vector/matrix math |
 | nlohmann/json | reading the vendored calibration |
 | doctest | unit tests |
@@ -106,7 +107,8 @@ Consequently the program implements **both** projection modes and compares them:
 
 ## 5. Architecture
 
-Six units, each with one purpose and a testable interface.
+Eight units, each with one purpose and a testable interface. Two binaries are built:
+`pose-project` (batch, produces the deliverable) and `pose-explorer` (interactive, optional).
 
 ### `pose_io`
 Parses `poses.txt`, `joint-names.txt`, `focal.txt` into a `Frame { vec3 camera_position;
@@ -126,11 +128,39 @@ Rejects malformed input loudly (wrong column count, non-finite values).
 ### `skeleton`
 The 14-joint bone topology (parent list) and left/right/torso limb colouring. Data only.
 
+### `draw`
+Drawing primitives shared by the batch renderer and the interactive explorer: skeleton in 2D
+(bones, joints, optional labels), skeleton in 3D, camera frustum, floor grid. Takes an
+abstract target so the same call sequence runs against a `RenderTexture` (batch) and the
+screen (explorer). **This sharing is a correctness property, not just tidiness: the figures in
+the PDF are produced by the same code path the explorer displays.**
+
 ### `render`
-raylib offscreen via a hidden window plus `RenderTexture`:
+Batch, raylib offscreen via a hidden window plus `RenderTexture`:
 - `white/NN.png` — 1000×1000, skeleton on white, joints as dots, bones as coloured lines.
 - `overlay/NN.png` — the same skeleton composited onto `frames/NN.png`.
 - `panel/NN.png` — overlay beside white render, echoing the challenge page's `pose-sample.png`.
+
+### `explorer` (separate binary, `pose-explorer`)
+An interactive tool for inspecting the data and generating report figures. Not required by
+the challenge; it exists because the geometry is far easier to *see* than to argue about, and
+because every figure in the write-up should be reproducible by hand.
+
+- **Left pane, 3D:** free orbit/pan/zoom over the capture volume — floor grid, world axes,
+  the selected frame's skeleton, and the frusta of all four cameras drawn at their true
+  positions. The look-at frustum and the ground-truth frustum for the active camera are drawn
+  together, so the orientation discrepancy of §4 is directly visible as two diverging cones.
+- **Right pane, 2D:** the projected result as the camera sees it — white background or the
+  real frame underneath, with an opacity slider.
+- **Controls:** frame scrubber (0–19), projection mode toggle (`lookat` / `gt` / both
+  superimposed), distortion on/off, look-at target selector (pelvis / centroid), world-up
+  choice, joint labels on/off.
+- **Readout:** live per-joint and mean reprojection error for the current frame, plus which
+  physical H36M camera the frame belongs to.
+- **Figure export:** one key writes the current view to `out/figures/` at report resolution.
+
+The explorer is read-only with respect to the deliverable: it cannot change the numbers in
+the coordinate table, only display them.
 
 ### `analysis`
 - Per-row, per-joint pixel distance between `lookat` and `gt` projections.
@@ -141,7 +171,8 @@ raylib offscreen via a hidden window plus `RenderTexture`:
 
 ### `main`
 `pose-project --data <Pose/> --out <dir> --mode lookat|gt|both`. Deterministic: same inputs
-produce byte-identical CSVs.
+produce byte-identical CSVs. The explorer never runs as part of this pipeline, so a machine
+with no display can still build the full deliverable.
 
 ## 6. Outputs
 
@@ -154,6 +185,7 @@ out/
   panel/00.png … 19.png             # side-by-side figures for the report
   analysis/joint-error.csv
   analysis/camera-angular-error.csv
+  figures/                          # written by pose-explorer's figure-export key
 report/report.tex                   # \input's the generated tables, \includegraphics the figures
 report/report.pdf                   # built by pdflatex; the graded deliverable
 ```
@@ -169,7 +201,8 @@ rebuilding the PDF is one command.
 | Joint with camera-space z ≤ 0 (behind camera) | reported per frame in the analysis output, not silently clipped |
 | Missing `frames/NN.png` | overlay for that row skipped with a warning; white render still produced |
 | Camera position matches no published centre within tolerance | degrade to `lookat` only, warn; never emit a `gt` overlay from a guessed camera |
-| No GL context available | documented `xvfb-run` fallback; failure message names it |
+| No GL context available (batch) | documented `xvfb-run` fallback; failure message names it |
+| No display available (explorer) | refuses to start with a message pointing at the batch tool; the deliverable never depends on the explorer |
 
 ## 8. Testing
 
@@ -185,7 +218,9 @@ TDD, doctest, no network in tests.
 - Limb lengths are preserved in 3D and vary smoothly under projection.
 
 Rendering is not unit-tested. It is validated by the overlay landing on the subject and by
-the numeric error tables — both of which appear as evidence in the write-up.
+the numeric error tables — both of which appear as evidence in the write-up. The explorer is
+not unit-tested either; the logic it displays lives in `camera` and `analysis`, which are, and
+its drawing goes through the same `draw` unit the batch figures use.
 
 ## 9. Write-up outline (the actual deliverable)
 
@@ -199,9 +234,15 @@ the numeric error tables — both of which appear as evidence in the write-up.
    principal-point artefact; the single-focal-length issue.
 8. Limitations, and references (H36M, the calibration repository, each library).
 
+An appendix documents the interactive explorer with a screenshot: it is not part of the
+challenge, but it is how several of the report's figures were produced and it demonstrates the
+orientation ambiguity of §4 visually.
+
 ## 10. Open items
 
 - `texlive` (pdflatex + recommended packages) must be installed locally before the PDF builds.
+- The explorer needs a working GL context; on this machine raylib and raygui are fetched by
+  CMake, but no system raylib is installed, so the first build will download and compile them.
 - Repository visibility: created private. A challenge solution left public before submission
   could hand answers to other applicants; flip with `gh repo edit --visibility public` if the
   repo is wanted as a portfolio link.
