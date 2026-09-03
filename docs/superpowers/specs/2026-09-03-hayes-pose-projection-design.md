@@ -142,37 +142,24 @@ Batch, raylib offscreen via a hidden window plus `RenderTexture`:
 - `panel/NN.png` — overlay beside white render, echoing the challenge page's `pose-sample.png`.
 
 ### `explorer` (separate binary, `pose-explorer`)
-An interactive tool for inspecting the data and generating report figures. Not required by
-the challenge; it exists because the geometry is far easier to *see* than to argue about, and
-because every figure in the write-up should be reproducible by hand.
+A deliberately plain debug tool for inspecting the data and grabbing report figures. Not
+required by the challenge, and kept small on purpose: **one full-window view at a time, plus a
+raygui debug panel of buttons, text and sliders.** No split screen, no custom UI work, no
+gameplay.
 
-- **Left pane, 3D:** free orbit/pan/zoom over the capture volume — floor grid, world axes,
-  the selected frame's skeleton, and the frusta of all four cameras drawn at their true
-  positions. The look-at frustum and the ground-truth frustum for the active camera are drawn
-  together, so the orientation discrepancy of §4 is directly visible as two diverging cones.
-- **Right pane, 2D:** the projected result as the camera sees it — white background or the
-  real frame underneath, with an opacity slider.
-- **Controls:** frame scrubber (0–19), projection mode toggle (`lookat` / `gt` / both
-  superimposed), distortion on/off, look-at target selector (pelvis / centroid), world-up
-  choice, joint labels on/off.
-- **Readout:** live per-joint and mean reprojection error for the current frame, plus which
-  physical H36M camera the frame belongs to.
-- **Figure export:** one key writes the current view to `out/figures/` at report resolution.
+- **View (one at a time, switched by a button):**
+  - *2D* (default) — the projected skeleton, drawn over the real frame or a white background.
+  - *3D* — a bare orbit camera over the capture volume: floor grid, the frame's skeleton, and
+    the look-at and ground-truth frusta of the active camera drawn together, so §4's
+    orientation discrepancy is visible as two diverging cones. This is the one figure the
+    write-up cannot easily make any other way, which is why the 3D view survives the cut.
+- **Debug panel:** frame slider (0–19); buttons for projection mode (`lookat` / `gt` / both),
+  background (photo / white), distortion on/off, view (2D / 3D), and figure export; a slider
+  for photo opacity; text lines for the active H36M camera id and the mean and worst per-joint
+  reprojection error of the current frame.
 
 The explorer is read-only with respect to the deliverable: it cannot change the numbers in
 the coordinate table, only display them.
-
-### `analysis`
-- Per-row, per-joint pixel distance between `lookat` and `gt` projections.
-- Per-camera angular error between the look-at rotation and the published rotation
-  (geodesic angle of `R_lookatᵀ·R_true`).
-- Limb-length preservation check as an internal sanity metric.
-- Emits CSV plus LaTeX-ready tables.
-
-### `main`
-`pose-project --data <Pose/> --out <dir> --mode lookat|gt|both`. Deterministic: same inputs
-produce byte-identical CSVs. The explorer never runs as part of this pipeline, so a machine
-with no display can still build the full deliverable.
 
 ## 6. Outputs
 
