@@ -1,5 +1,8 @@
 #pragma once
 #include <array>
+#include <filesystem>
+#include <string>
+#include <vector>
 #include <glm/mat3x3.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -31,5 +34,19 @@ glm::dvec3 centroid(const Frame& frame);
 glm::dvec2 project(const glm::dvec3& world, const Extrinsics& ext, const Intrinsics& k,
                    bool apply_distortion);
 Intrinsics challenge_intrinsics(double focal);
+
+struct CalibratedCamera {
+  std::string id;
+  Intrinsics intrinsics;
+  Extrinsics extrinsics;
+  glm::dvec3 center{};
+};
+
+glm::dvec3 camera_center(const Extrinsics& ext);
+std::vector<CalibratedCamera> load_calibration(const std::filesystem::path& json_path,
+                                               const std::string& subject = "S1");
+const CalibratedCamera* identify(const glm::dvec3& camera_position,
+                                 const std::vector<CalibratedCamera>& cameras,
+                                 double tolerance_mm);
 
 }  // namespace pose

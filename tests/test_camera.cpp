@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include "camera.hpp"
+#include <filesystem>
 #include <glm/gtc/matrix_access.hpp>
 
 TEST_CASE("look_at basis is orthonormal and right-handed") {
@@ -60,4 +61,43 @@ TEST_CASE("centroid averages all 14 joints") {
   const auto c = pose::centroid(f);
   CHECK(c.x == doctest::Approx(3.0));
   CHECK(c.z == doctest::Approx(9.0));
+}
+
+TEST_CASE("calibration loads four S1 cameras with plausible focals") {
+  const auto cams = pose::load_calibration("third_party/h36m/camera-parameters.json", "S1");
+  REQUIRE(cams.size() == 4);
+  for (const auto& c : cams) {
+    CHECK(c.intrinsics.fx > 1100.0);
+    CHECK(c.intrinsics.fx < 1200.0);
+    CHECK(c.intrinsics.has_distortion);
+  }
+}
+
+TEST_CASE("camera centers match the positions in the challenge file exactly") {
+  const auto cams = pose::load_calibration("third_party/h36m/camera-parameters.json", "S1");
+  // Row 0 of the real poses.txt.
+  const glm::dvec3 row0{1761.27853428116, -5078.00659454077, 1606.2649598335};
+  const auto* hit = pose::identify(row0, cams, 1.0);
+  REQUIRE(hit != nullptr);
+  CHECK(hit->id == "55011271");
+  CHECK(glm::length(hit->center - row0) < 0.01);
+}
+
+TEST_CASE("identify returns nullptr past tolerance") {
+  const auto cams = pose::load_calibration("third_party/h36m/camera-parameters.json", "S1");
+  CHECK(pose::identify({0.0, 0.0, 0.0}, cams, 100.0) == nullptr);
+}
+
+TEST_CASE("ground-truth projection lands where the subject sits in frame 00") {
+  const auto cams = pose::load_calibration("third_party/h36m/camera-parameters.json", "S1");
+  const auto frames = pose::load_poses("data/Pose/poses.txt");
+  REQUIRE(frames.size() == 20);
+  const auto* cam = pose::identify(frames[0].camera_position, cams, 1.0);
+  REQUIRE(cam != nullptr);
+  glm::dvec2 sum(0.0);
+  for (const auto& j : frames[0].joints)
+    sum += pose::project(j, cam->extrinsics, cam->intrinsics, false);
+  const glm::dvec2 c = sum / 14.0;
+  CHECK(c.x == doctest::Approx(559.3).epsilon(0.01));
+  CHECK(c.y == doctest::Approx(547.1).epsilon(0.01));
 }
