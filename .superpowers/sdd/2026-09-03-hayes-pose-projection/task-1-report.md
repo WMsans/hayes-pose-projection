@@ -29,3 +29,18 @@ Implemented the Task 1 project scaffold, pinned FetchContent dependencies, smoke
 - `tests/test_smoke.cpp`
 - `third_party/h36m/camera-parameters.json`
 - `third_party/h36m/LICENSE`
+
+## Fix Round 1/5
+
+### Change
+
+- Added `set(CMAKE_CXX_EXTENSIONS OFF)` to `CMakeLists.txt` so C++20 targets use strict standard-conforming mode rather than compiler-specific extensions.
+
+### Covering test files
+
+- `tests/test_smoke.cpp` (unchanged)
+
+### Verification
+
+- Command: `cmake -S . -B build && cmake --build build -j && ./build/pose_tests`
+- Output: configure and build completed successfully; doctest reported `test cases: 1 | 1 passed | 0 failed` and `assertions: 1 | 1 passed | 0 failed`; status `SUCCESS!`.
