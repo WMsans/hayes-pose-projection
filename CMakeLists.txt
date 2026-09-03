@@ -33,3 +33,13 @@ add_test(NAME pose_project_reports_input_error
     -DPOSE_PROJECT=$<TARGET_FILE:pose-project>
     -DCASE=missing-input
     -P ${CMAKE_SOURCE_DIR}/tests/check_pose_project_cli.cmake)
+
+add_test(NAME pose_project_supports_both_mode
+  COMMAND ${CMAKE_COMMAND}
+    -DPOSE_PROJECT=$<TARGET_FILE:pose-project>
+    -DPOSE_DATA=${CMAKE_SOURCE_DIR}/data/Pose
+    -DPOSE_OUTPUT=${CMAKE_BINARY_DIR}/both-task-8-output
+    -DCASE=both
+    -P ${CMAKE_SOURCE_DIR}/tests/check_pose_project_cli.cmake)
+set_tests_properties(pose_project_supports_both_mode PROPERTIES
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

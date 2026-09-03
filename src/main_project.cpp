@@ -62,7 +62,7 @@ int main(int argc, char** argv) try {
   const auto frames = pose::load_poses(opt.data / "poses.txt");
   const double focal = pose::load_focal(opt.data / "focal.txt");
   std::vector<pose::CalibratedCamera> cameras;
-  if (opt.mode == "gt")
+  if (opt.mode != "lookat")
     cameras = pose::load_calibration("third_party/h36m/camera-parameters.json", "S1");
 
   OffscreenScope offscreen;
