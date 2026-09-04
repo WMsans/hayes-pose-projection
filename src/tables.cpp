@@ -59,6 +59,8 @@ void write_error_tables(const std::filesystem::path& out_dir,
   std::vector<std::vector<std::string>> angular_rows;
   angular_rows.reserve(lookat_uv.size());
   for (std::size_t f = 0; f < lookat_uv.size(); ++f) {
+    if (lookat_uv[f].size() != kJointCount || gt_uv[f].size() != kJointCount)
+      throw std::runtime_error("write_error_tables: joint count mismatch");
     const auto e = joint_error(lookat_uv[f], gt_uv[f]);
     rows.push_back({std::to_string(f), camera_ids[f], fixed(e.mean_px, 2), fixed(e.max_px, 2),
                     std::to_string(e.worst_joint), fixed(angular_deg[f], 4)});

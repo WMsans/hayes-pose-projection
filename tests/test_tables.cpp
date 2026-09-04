@@ -73,3 +73,15 @@ TEST_CASE("write_error_tables emits joint and camera angular CSVs") {
   std::error_code error;
   std::filesystem::remove_all(directory, error);
 }
+
+TEST_CASE("write_error_tables rejects frames without exactly 14 joints") {
+  const auto directory = test_output_directory();
+  for (const auto joint_count : {1, 13, 15}) {
+    const std::vector<glm::dvec2> malformed(joint_count, {1.0, 2.0});
+    CHECK_THROWS_WITH(pose::write_error_tables(directory, {malformed}, {malformed}, {0.0},
+                                                {"camera-a"}),
+                      "write_error_tables: joint count mismatch");
+  }
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
