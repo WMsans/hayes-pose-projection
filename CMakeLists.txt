@@ -22,6 +22,9 @@ set_tests_properties(unit PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_executable(pose-project src/main_project.cpp)
 target_link_libraries(pose-project PRIVATE pose_core)
 
+add_executable(pose-explorer src/main_explorer.cpp)
+target_link_libraries(pose-explorer PRIVATE pose_core)
+
 add_test(NAME pose_project_rejects_invalid_mode
   COMMAND ${CMAKE_COMMAND}
     -DPOSE_PROJECT=$<TARGET_FILE:pose-project>
