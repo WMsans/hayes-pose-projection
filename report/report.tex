@@ -5,13 +5,13 @@
 
 \title{Projecting 3D Human Poses onto 2D Images}
 \author{Jeremy}
-\date{\today}
+\date{September 3, 2026}
 
 \begin{document}
 \maketitle
 
 \section{The task and the data}
-The input is a small Human3.6M-style sample: \texttt{data/Pose/poses.txt}
+The input is a small Human3.6M-style sample \cite{h36m}: \texttt{data/Pose/poses.txt}
 contains 20 non-empty rows, and every row has 45 whitespace-separated values.
 The first three values are the camera position $(C_x,C_y,C_z)$ in millimetres.
 The remaining 42 values are fourteen $(x,y,z)$ joint positions, also in
@@ -25,14 +25,16 @@ one scalar focal length, $f=1148.6$, in \texttt{focal.txt}.  For the challenge
 projection I use square intrinsics with $f_x=f_y=f$ and principal point
 $(c_x,c_y)=(500,500)$ pixels.  The output contains one white-background render,
 one photograph overlay, and one side-by-side panel for each of the 20 frames,
-plus a generated CSV and LaTeX coordinate table.
+plus a generated CSV and LaTeX coordinate table.  Vector and matrix operations
+use the header-only GLM library \cite{glm}, while the vendored calibration JSON
+is parsed with nlohmann/json \cite{json}.
 
 \section{Identifying the cameras}
 The camera position column has only four distinct positions.  Each position
 occurs exactly five times, so the 20 frames can be grouped into four camera
 views without estimating a new camera for every pose.  Matching is by Euclidean
  distance in millimetres against the centers reconstructed from the vendored
-published calibration, with a tolerance of 1 mm.  The resulting assignment is:
+published calibration \cite{calib}, with a tolerance of 1 mm.  The resulting assignment is:
 
 \begin{center}
 \begin{tabular}{l l l}
@@ -89,7 +91,8 @@ The look-at mode uses the challenge intrinsics stated above.  The reference
 mode uses the matched camera's published $R,t$ and camera-specific intrinsic
 matrix.  The command used for these artifacts is \texttt{--mode both}; it
 writes the look-at skeleton to the white image and writes the reference
-calibration projection over the photograph.  It then combines those two
+calibration projection over the photograph using raylib's rendering API
+\cite{raylib}.  It then combines those two
 images into a panel, preserving a direct visual comparison.
 
 \begin{figure}[htbp]
@@ -181,13 +184,25 @@ thus an evaluation of this stated approximation, not a claim that the
 look-at model is a replacement for full calibration.  Finally, rendering uses
 an off-screen OpenGL context; a headless Linux run needs a provider such as
 \texttt{xvfb-run}, while the numerical tests and projection code do not depend
-on a display.
+on a display.  The interactive explorer uses raygui for its controls
+\cite{raygui}, and the C++ regression suite uses doctest \cite{doctest}.
 
-\begin{thebibliography}{9}
-\bibitem{h36m} Ionescu et al., \emph{Human3.6M}, IEEE TPAMI 2014.
+\begin{thebibliography}{99}
+\bibitem{h36m} C.\ Ionescu et al., ``Human3.6M: Large Scale Datasets and
+  Predictive Methods for 3D Human Sensing in Natural Environments,''
+  IEEE TPAMI, 2014.
 \bibitem{calib} K.\ Iskakov, \emph{human36m-camera-parameters}, MIT licence,
   \url{https://github.com/karfly/human36m-camera-parameters}.
-\bibitem{raylib} R.\ Santamaria, \emph{raylib}, \url{https://www.raylib.com}.
+\bibitem{raylib} R.\ Santamaria, \emph{raylib}, version 5.5,
+  \url{https://www.raylib.com}.
+\bibitem{raygui} R.\ Santamaria, \emph{raygui}, version 4.0,
+  \url{https://github.com/raysan5/raygui}.
+\bibitem{glm} G-Truc Creation, \emph{OpenGL Mathematics (GLM)}, version 1.0.1,
+  \url{https://github.com/g-truc/glm}.
+\bibitem{json} N.\ Lohmann, \emph{JSON for Modern C++}, version 3.11.3,
+  \url{https://github.com/nlohmann/json}.
+\bibitem{doctest} V.\ Kirilov, \emph{doctest}, version 2.4.11,
+  \url{https://github.com/doctest/doctest}.
 \end{thebibliography}
 
 \end{document}
