@@ -2,6 +2,9 @@
 
 #include <raylib.h>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -80,25 +83,68 @@ class ImageScope {
 
 }  // namespace
 
+ProjectedFrame::ProjectedFrame() : uv(kJointCount, glm::dvec2{0.0}) {
+  joint_status.fill(JointProjectionStatus::Valid);
+}
+
+int ProjectedFrame::invalid_joint_count() const {
+  int count = 0;
+  for (const auto status : joint_status)
+    if (status != JointProjectionStatus::Valid) ++count;
+  return count;
+}
+
+bool ProjectedFrame::complete() const {
+  return camera_matched && invalid_joint_count() == 0 && uv.size() == kJointCount;
+}
+
+ProjectedFrame project_frame_status(const Frame& frame, Mode mode,
+                                    const std::vector<CalibratedCamera>& cameras, double focal,
+                                    bool apply_distortion) {
+  ProjectedFrame result;
+  Extrinsics ext;
+  Intrinsics intrinsics;
+  if (mode == Mode::LookAt) {
+    ext = look_at_extrinsics(frame.camera_position, centroid(frame), {0.0, 0.0, 1.0});
+    intrinsics = challenge_intrinsics(focal);
+  } else {
+    const auto* cam = identify(frame.camera_position, cameras, 1.0);
+    if (cam == nullptr) {
+      result.camera_matched = false;
+      result.joint_status.fill(JointProjectionStatus::UnmatchedCamera);
+      const double nan = std::numeric_limits<double>::quiet_NaN();
+      std::fill(result.uv.begin(), result.uv.end(), glm::dvec2{nan, nan});
+      return result;
+    }
+    ext = cam->extrinsics;
+    intrinsics = cam->intrinsics;
+  }
+
+  for (std::size_t i = 0; i < frame.joints.size(); ++i) {
+    const glm::dvec3 camera_point = ext.rotation * frame.joints[i] + ext.translation;
+    if (camera_point.z <= 0.0) {
+      result.joint_status[i] = JointProjectionStatus::BehindCamera;
+      const double nan = std::numeric_limits<double>::quiet_NaN();
+      result.uv[i] = {nan, nan};
+      continue;
+    }
+    result.uv[i] = project(frame.joints[i], ext, intrinsics, apply_distortion);
+  }
+  return result;
+}
+
 std::vector<glm::dvec2> project_frame(const Frame& frame, Mode mode,
                                       const std::vector<CalibratedCamera>& cameras, double focal,
                                       bool apply_distortion) {
-  std::vector<glm::dvec2> uv;
-  uv.reserve(kJointCount);
-
-  if (mode == Mode::LookAt) {
-    const auto ext = look_at_extrinsics(frame.camera_position, centroid(frame), {0.0, 0.0, 1.0});
-    const auto k = challenge_intrinsics(focal);
-    for (const auto& j : frame.joints) uv.push_back(project(j, ext, k, apply_distortion));
-    return uv;
-  }
-
-  const auto* cam = identify(frame.camera_position, cameras, 1.0);
-  if (cam == nullptr)
+  const auto result = project_frame_status(frame, mode, cameras, focal, apply_distortion);
+  if (!result.camera_matched)
     throw std::runtime_error("no published camera matches this position; use --mode lookat");
-  for (const auto& j : frame.joints)
-    uv.push_back(project(j, cam->extrinsics, cam->intrinsics, apply_distortion));
-  return uv;
+  for (std::size_t i = 0; i < result.joint_status.size(); ++i) {
+    if (result.joint_status[i] == JointProjectionStatus::BehindCamera)
+      throw std::runtime_error("project_frame: joint " + std::to_string(i) +
+                               " is at or behind the image plane");
+  }
+  return result.uv;
 }
 
 void begin_offscreen() {

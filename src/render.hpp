@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <filesystem>
 #include <glm/vec2.hpp>
 #include <vector>
@@ -12,8 +13,26 @@ inline constexpr int kImageSize = 1000;
 
 enum class Mode { LookAt, Gt };
 
-// Projects all 14 joints of a frame. LookAt uses only challenge-supplied data;
-// Gt uses the published calibration and throws if the camera cannot be identified.
+enum class JointProjectionStatus { Valid, BehindCamera, UnmatchedCamera };
+
+struct ProjectedFrame {
+  std::vector<glm::dvec2> uv;
+  std::array<JointProjectionStatus, kJointCount> joint_status{};
+  bool camera_matched{true};
+
+  ProjectedFrame();
+  int invalid_joint_count() const;
+  bool complete() const;
+};
+
+// Reports each joint independently so a batch can continue after a bad depth.
+// Unmatched GT cameras produce no coordinates and are marked explicitly.
+ProjectedFrame project_frame_status(const Frame& frame, Mode mode,
+                                    const std::vector<CalibratedCamera>& cameras, double focal,
+                                    bool apply_distortion = false);
+
+// Compatibility wrapper: preserves the historical throwing behavior for callers that require a
+// complete projection. Batch code should use project_frame_status instead.
 std::vector<glm::dvec2> project_frame(const Frame& frame, Mode mode,
                                       const std::vector<CalibratedCamera>& cameras, double focal,
                                       bool apply_distortion = false);

@@ -66,49 +66,66 @@ int main(int argc, char** argv) try {
   if (opt.mode != "lookat")
     cameras = pose::load_calibration("third_party/h36m/camera-parameters.json", "S1");
 
-  std::vector<std::vector<glm::dvec2>> lookat_uv;
-  std::vector<std::vector<glm::dvec2>> gt_uv;
+  std::vector<pose::ProjectedFrame> lookat_results;
+  std::vector<pose::ProjectedFrame> gt_results;
   std::vector<std::string> camera_ids;
   std::vector<double> angular_deg;
 
   OffscreenScope offscreen;
   for (std::size_t i = 0; i < frames.size(); ++i) {
     const std::string name = frame_name(i);
-    std::vector<glm::dvec2> uv;
-    std::vector<glm::dvec2> overlay_uv;
-    if (opt.mode == "lookat") {
-      uv = pose::project_frame(frames[i], pose::Mode::LookAt, cameras, focal);
-      overlay_uv = uv;
-    } else {
-      const auto la = pose::project_frame(frames[i], pose::Mode::LookAt, cameras, focal);
-      const auto gt = pose::project_frame(frames[i], pose::Mode::Gt, cameras, focal);
-      lookat_uv.push_back(la);
-      gt_uv.push_back(gt);
+    const auto lookat =
+        pose::project_frame_status(frames[i], pose::Mode::LookAt, cameras, focal, false);
+    if (lookat.invalid_joint_count() != 0)
+      std::cerr << "warning: frame " << i << ": look-at has " << lookat.invalid_joint_count()
+                << " behind-camera joints; invalid joints are omitted\n";
 
-      const auto* cam = pose::identify(frames[i].camera_position, cameras, 1.0);
-      camera_ids.push_back(cam ? cam->id : "unknown");
-      const auto la_ext =
-          pose::look_at_extrinsics(frames[i].camera_position, pose::centroid(frames[i]), {0, 0, 1});
+    pose::ProjectedFrame gt;
+    const pose::CalibratedCamera* cam = nullptr;
+    if (opt.mode != "lookat") {
+      // Identify before projecting GT so an unknown position can never be guessed.
+      cam = pose::identify(frames[i].camera_position, cameras, 1.0);
+      if (cam == nullptr) {
+        std::cerr << "warning: frame " << i
+                  << ": no published camera matches this position; using look-at only\n";
+      }
+      gt = pose::project_frame_status(frames[i], pose::Mode::Gt, cameras, focal, true);
+      if (gt.invalid_joint_count() != 0 && gt.camera_matched)
+        std::cerr << "warning: frame " << i << ": ground-truth has "
+                  << gt.invalid_joint_count()
+                  << " behind-camera joints; GT comparison and overlay are skipped\n";
+
+      lookat_results.push_back(lookat);
+      gt_results.push_back(gt);
+      camera_ids.push_back(cam != nullptr ? cam->id : "unknown");
+      const auto la_ext = pose::look_at_extrinsics(frames[i].camera_position,
+                                                    pose::centroid(frames[i]), {0, 0, 1});
       angular_deg.push_back(
-          cam ? pose::angular_error_degrees(la_ext.rotation, cam->extrinsics.rotation) : 0.0);
-
-      uv = (opt.mode == "gt") ? gt : la;
-      overlay_uv = gt;
+          cam != nullptr ? pose::angular_error_degrees(la_ext.rotation, cam->extrinsics.rotation)
+                         : 0.0);
     }
 
+    const auto& primary = (opt.mode == "gt" && gt.complete()) ? gt : lookat;
     const auto white_png = opt.out / "white" / (name + ".png");
     const auto overlay_png = opt.out / "overlay" / (name + ".png");
-    pose::render_white(uv, white_png);
-    pose::render_overlay(overlay_uv, opt.data / "frames" / (name + ".png"), overlay_png);
+    pose::render_white(primary.uv, white_png);
+    if (opt.mode != "lookat" && gt.complete()) {
+      pose::render_overlay(gt.uv, opt.data / "frames" / (name + ".png"), overlay_png);
+    } else if (opt.mode != "lookat") {
+      std::cerr << "warning: frame " << i << ": skipping GT overlay\n";
+    }
     pose::render_panel(overlay_png, white_png, opt.out / "panel" / (name + ".png"));
   }
 
   if (opt.mode != "lookat") {
     const auto joint_names = pose::load_joint_names(opt.data / "joint-names.txt");
     pose::write_coordinate_table(opt.out / "coords" / "all-2d-coordinates.csv",
-                                 opt.out / "coords" / "all-2d-coordinates.tex", lookat_uv, gt_uv,
-                                 joint_names, camera_ids);
-    pose::write_error_tables(opt.out / "analysis", lookat_uv, gt_uv, angular_deg, camera_ids);
+                                 opt.out / "coords" / "all-2d-coordinates.tex", lookat_results,
+                                 gt_results, joint_names, camera_ids);
+    pose::write_error_tables(opt.out / "analysis", lookat_results, gt_results, angular_deg,
+                             camera_ids);
+    pose::write_projection_status(opt.out / "analysis" / "projection-status.csv", lookat_results,
+                                  gt_results, camera_ids);
     std::cout << "wrote " << frames.size()
               << " white renders, coordinate table and error analysis to " << opt.out << "\n";
   } else {

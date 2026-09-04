@@ -61,6 +61,10 @@ if(CASE STREQUAL "both")
   set(angular_row "^[0-9]+,[^,]+,-?[0-9]+\\.[0-9][0-9][0-9][0-9]$")
   assert_csv("${output_dir}/analysis/camera-angular-error.csv" 21
              "frame,camera,angular_deg" "${angular_row}")
+  set(status_row "^[0-9]+,[^,]+,(valid|behind-camera|unmatched-camera),[0-9]+,(valid|behind-camera|unmatched-camera),[0-9]+$")
+  assert_csv("${output_dir}/analysis/projection-status.csv" 21
+             "frame,camera,lookat_status,lookat_invalid_joints,gt_status,gt_invalid_joints"
+             "${status_row}")
 
   set(coordinate_tex "${output_dir}/coords/all-2d-coordinates.tex")
   if(NOT EXISTS "${coordinate_tex}")

@@ -12,6 +12,11 @@ TEST_CASE("look_at basis is orthonormal and right-handed") {
   CHECK(glm::determinant(R) == doctest::Approx(1.0));
 }
 
+TEST_CASE("look_at rejects a coincident eye and target descriptively") {
+  CHECK_THROWS_WITH(pose::look_at_rotation({1.0, 2.0, 3.0}, {1.0, 2.0, 3.0}, {0, 0, 1}),
+                    "look_at: eye and target must differ");
+}
+
 TEST_CASE("the look-at target lands exactly on the principal point") {
   const glm::dvec3 eye{1761.0, -5078.0, 1606.0};
   const glm::dvec3 target{12.0, -34.0, 156.0};

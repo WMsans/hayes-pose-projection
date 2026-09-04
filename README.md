@@ -19,12 +19,22 @@ cmake -S . -B build && cmake --build build -j
 ./build/pose-explorer --data data/Pose     # optional debug tool; needs a display
 ```
 
+On a headless Linux host, use the batch fallback when no GL context is
+available:
+
+```bash
+xvfb-run -a ./build/pose-project --data data/Pose --out out --mode both
+```
+
+The CMake `report` target runs the batch generator and then builds the PDF;
+when `pdflatex` is unavailable it fails with an explicit diagnostic.
+
 ## Results
 
 The clean-room `--mode both` run compares the centroid look-at projection with
 matched published camera calibration across 20 frames and 14 joints. The mean
-per-frame joint error is **97.29 px**; the worst individual joint error is
-**189.88 px** (frame 1, `RWrist`). The mean camera-orientation error is
+per-frame joint error is **97.03 px**; the worst individual joint error is
+**188.26 px** (frame 1, `RKnee`). The mean camera-orientation error is
 **5.0201°**, with a worst case of **8.4553°** (frame 1). The graded write-up
 and generated coordinate table are delivered in [`report/report.pdf`](report/report.pdf).
 

@@ -90,16 +90,34 @@ coordinates and pixels are
 The look-at mode uses the challenge intrinsics stated above.  The reference
 mode uses the matched camera's published $R,t$ and camera-specific intrinsic
 matrix.  The command used for these artifacts is \texttt{--mode both}; it
-writes the look-at skeleton to the white image and writes the reference
-calibration projection over the photograph using raylib's rendering API
-\cite{raylib}.  It then combines those two
+writes the undistorted look-at skeleton to the white image and writes the
+published-calibration projection, with distortion enabled, over the
+photograph using raylib's rendering API \cite{raylib}.  It then combines those two
 images into a panel, preserving a direct visual comparison.
 
 \begin{figure}[htbp]
 \centering
-  \includegraphics[width=0.45\textwidth]{white/00.png}
-  \includegraphics[width=0.45\textwidth]{white/01.png}
-  \caption{Look-at projected skeletons on a white background (frames 00 and 01).}
+  \includegraphics[width=0.18\textwidth]{white/00.png}
+  \includegraphics[width=0.18\textwidth]{white/01.png}
+  \includegraphics[width=0.18\textwidth]{white/02.png}
+  \includegraphics[width=0.18\textwidth]{white/03.png}
+  \includegraphics[width=0.18\textwidth]{white/04.png}\\[2pt]
+  \includegraphics[width=0.18\textwidth]{white/05.png}
+  \includegraphics[width=0.18\textwidth]{white/06.png}
+  \includegraphics[width=0.18\textwidth]{white/07.png}
+  \includegraphics[width=0.18\textwidth]{white/08.png}
+  \includegraphics[width=0.18\textwidth]{white/09.png}\\[2pt]
+  \includegraphics[width=0.18\textwidth]{white/10.png}
+  \includegraphics[width=0.18\textwidth]{white/11.png}
+  \includegraphics[width=0.18\textwidth]{white/12.png}
+  \includegraphics[width=0.18\textwidth]{white/13.png}
+  \includegraphics[width=0.18\textwidth]{white/14.png}\\[2pt]
+  \includegraphics[width=0.18\textwidth]{white/15.png}
+  \includegraphics[width=0.18\textwidth]{white/16.png}
+  \includegraphics[width=0.18\textwidth]{white/17.png}
+  \includegraphics[width=0.18\textwidth]{white/18.png}
+  \includegraphics[width=0.18\textwidth]{white/19.png}
+  \caption{All 20 look-at projected skeletons on white backgrounds, frames 00 through 19.}
 \end{figure}
 
 All 20 white renders, overlays, and panels are generated from the same run.
@@ -109,9 +127,10 @@ projection in the original image coordinate system.
 
 \section{(c) Superimposing on the photographs}
 The overlay uses the matched published camera calibration, including its
-extrinsic orientation and camera-specific focal/principal-point values.  The
-result is composited over the corresponding 1000 by 1000 source frame, and the
-panel places that overlay beside the challenge look-at render.  The first panel
+extrinsic orientation, camera-specific intrinsic matrix, and distortion
+coefficients.  The result is composited over the corresponding 1000 by 1000
+source frame, and the panel places that overlay beside the challenge look-at
+render.  The first panel
 is shown below; the remaining 19 panels are generated alongside it in
 \texttt{out/panel/}.
 
@@ -127,10 +146,10 @@ The generated \texttt{out/analysis/joint-error.csv} compares the look-at and
 reference pixel coordinates for all 20 frames and all 14 joints.  Its
 \texttt{mean\_px} column is the mean of the 14 joint distances for one frame;
 \texttt{max\_px} records that frame's largest joint distance.  Averaging the
-20 reported frame means gives $97.2925$ pixels, or $97.29$ pixels to the
-precision retained in the report.  The worst individual error is $189.88$
-pixels, at frame 1, camera 58860488, joint 13 (RWrist).  Frame 1 also has the
-largest frame mean, $187.82$ pixels.  These are measured values from the fresh
+20 reported frame means gives $97.0305$ pixels, or $97.03$ pixels to the
+precision retained in the report.  The worst individual error is $188.26$
+pixels, at frame 1, camera 58860488, joint 2 (RKnee).  Frame 1 also has the
+largest frame mean, $187.04$ pixels.  These are measured values from the fresh
 clean-room output, not values inferred from the images.
 
 The same run writes the spec-required
@@ -149,14 +168,15 @@ matrices (their principal points are not all $(500,500)$ and their focal
 values are not identical).  A common pixel translation can therefore remain
 even when the viewing direction is visually plausible; the perspective scale
 also changes with focal length.  The per-camera frame-mean averages illustrate
-that the mismatch is view-dependent: 57.09 px for camera 60457274, 78.27 px
-for 55011271, 95.95 px for 54138969, and 157.86 px for 58860488.
+that the mismatch is view-dependent: 56.97 px for camera 60457274, 78.09 px
+for 55011271, 95.74 px for 54138969, and 157.32 px for 58860488.
 
-For this comparison the executable's default is used, so the pinhole
-coordinates are not additionally distorted.  The calibration loader retains
-the published distortion coefficients and the projection API can apply them,
-but enabling distortion would answer a different comparison question and is
-not part of the generated default artifacts.
+The generated batch comparison applies no distortion to look-at coordinates,
+because the challenge data provides no distortion model, and applies the
+published distortion coefficients to every ground-truth coordinate used for
+the overlay, coordinate table, and error analysis.  Thus the reported pixel
+errors compare the actual two batch outputs rather than an undistorted GT
+intermediate.
 
 \section{The consolidated coordinate table}
 The following table is generated by the executable, rather than copied into
@@ -166,6 +186,13 @@ camera, joint index/name, and both $(u,v)$ pairs.  Including it with
 rounded coordinates available for inspection.
 
 \input{../out/coords/all-2d-coordinates.tex}
+
+\appendix
+\section{Interactive explorer}
+No explorer screenshot is included in this clean-room artifact set: the
+optional interactive export was not available without inventing or committing
+a generated image.  The explorer remains a read-only debugging tool; the
+batch renders and numerical tables do not depend on it.
 
 \section{Limitations and references}
 The look-at camera is intentionally a simple construction.  It assumes that
@@ -180,12 +207,17 @@ challenge projection even though four cameras are present.  Treating 1148.6 as
 valid for all four views is required to make the challenge-mode output
 reproducible, but it cannot reproduce the camera-specific focal lengths and
 principal points in the published calibration.  The reported pixel error is
-thus an evaluation of this stated approximation, not a claim that the
-look-at model is a replacement for full calibration.  Finally, rendering uses
-an off-screen OpenGL context; a headless Linux run needs a provider such as
-\texttt{xvfb-run}, while the numerical tests and projection code do not depend
-on a display.  The interactive explorer uses raygui for its controls
-\cite{raygui}, and the C++ regression suite uses doctest \cite{doctest}.
+thus an evaluation of this stated approximation, including published GT
+distortion, not a claim that the look-at model is a replacement for full
+calibration.  If a frame's camera position is unmatched, the batch keeps its
+look-at render, omits the GT overlay and comparison row, and records an
+\texttt{unmatched-camera} status in \texttt{projection-status.csv}; no camera
+is guessed.  Likewise, joints at or behind the image plane are omitted from
+rendering and identified by a per-frame \texttt{behind-camera} count.  Finally,
+rendering uses an off-screen OpenGL context; a headless Linux run needs a
+provider such as \texttt{xvfb-run}, while the numerical tests and projection
+code do not depend on a display.  The interactive explorer uses raygui for its
+controls \cite{raygui}, and the C++ regression suite uses doctest \cite{doctest}.
 
 \begin{thebibliography}{99}
 \bibitem{h36m} C.\ Ionescu et al., ``Human3.6M: Large Scale Datasets and

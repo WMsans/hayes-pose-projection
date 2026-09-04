@@ -10,7 +10,10 @@ namespace pose {
 
 glm::dmat3 look_at_rotation(const glm::dvec3& eye, const glm::dvec3& target,
                             const glm::dvec3& world_up) {
-  const glm::dvec3 forward = glm::normalize(target - eye);
+  const glm::dvec3 view = target - eye;
+  if (glm::length(view) < 1e-12)
+    throw std::runtime_error("look_at: eye and target must differ");
+  const glm::dvec3 forward = glm::normalize(view);
   glm::dvec3 right = glm::cross(forward, world_up);
   const double len = glm::length(right);
   if (len < 1e-9)

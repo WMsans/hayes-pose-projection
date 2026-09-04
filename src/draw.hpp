@@ -4,8 +4,11 @@
 
 namespace pose {
 
+struct ProjectedFrame;
+
 // Colours follow the challenge page's sample figure: right limbs red,
 // left limbs blue, torso black. Call inside an active raylib draw scope.
 void draw_skeleton_2d(const std::vector<glm::dvec2>& uv, float thickness, float alpha);
+void draw_skeleton_2d(const ProjectedFrame& projected, float thickness, float alpha);
 
 }  // namespace pose

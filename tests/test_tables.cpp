@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -70,6 +71,27 @@ TEST_CASE("write_error_tables emits joint and camera angular CSVs") {
   CHECK(read_file(directory / "camera-angular-error.csv") ==
         "frame,camera,angular_deg\n"
         "0,camera-a,12.3457\n");
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("write_projection_status records per-frame status and invalid counts") {
+  const auto directory = test_output_directory();
+  pose::ProjectedFrame lookat;
+  pose::ProjectedFrame gt;
+  gt.joint_status[2] = pose::JointProjectionStatus::BehindCamera;
+  gt.uv[2] = {NAN, NAN};
+  pose::ProjectedFrame unmatched;
+  unmatched.camera_matched = false;
+  unmatched.joint_status.fill(pose::JointProjectionStatus::UnmatchedCamera);
+
+  pose::write_projection_status(directory / "projection-status.csv", {lookat, lookat},
+                                {gt, unmatched}, {"camera-a", "unknown"});
+
+  CHECK(read_file(directory / "projection-status.csv") ==
+        "frame,camera,lookat_status,lookat_invalid_joints,gt_status,gt_invalid_joints\n"
+        "0,camera-a,valid,0,behind-camera,1\n"
+        "1,unknown,valid,0,unmatched-camera,14\n");
   std::error_code error;
   std::filesystem::remove_all(directory, error);
 }

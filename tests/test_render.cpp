@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <cmath>
 #include <cstddef>
 #include <exception>
 #include <filesystem>
@@ -199,6 +200,42 @@ TEST_CASE("project_frame Gt uses the identified calibrated camera") {
   REQUIRE(uv.size() == pose::kJointCount);
   CHECK(uv[1].x == doctest::Approx(400.0));
   CHECK(uv[1].y == doctest::Approx(270.0));
+}
+
+TEST_CASE("project_frame_status reports behind-camera joints without aborting the frame") {
+  pose::Frame frame;
+  frame.camera_position = {0.0, 0.0, 0.0};
+  for (auto& joint : frame.joints) joint = {0.0, 0.0, 1000.0};
+  frame.joints[0] = {0.0, 0.0, -1.0};
+  frame.joints[1].x = 1.0;
+
+  const auto result = pose::project_frame_status(frame, pose::Mode::LookAt, {}, 0.0, false);
+
+  REQUIRE(result.uv.size() == pose::kJointCount);
+  CHECK(result.camera_matched);
+  CHECK(result.invalid_joint_count() == 1);
+  CHECK(result.joint_status[0] == pose::JointProjectionStatus::BehindCamera);
+  CHECK(result.joint_status[1] == pose::JointProjectionStatus::Valid);
+  CHECK(std::isnan(result.uv[0].x));
+  CHECK_FALSE(std::isnan(result.uv[1].x));
+}
+
+TEST_CASE("project_frame_status reports an unmatched GT camera without guessing") {
+  pose::Frame frame;
+  frame.camera_position = {100.0, 0.0, 0.0};
+  for (auto& joint : frame.joints) joint = {0.0, 0.0, 1000.0};
+
+  const auto result = pose::project_frame_status(frame, pose::Mode::Gt, {}, 0.0, true);
+
+  REQUIRE(result.uv.size() == pose::kJointCount);
+  CHECK_FALSE(result.camera_matched);
+  CHECK(result.invalid_joint_count() == pose::kJointCount);
+  for (const auto status : result.joint_status)
+    CHECK(status == pose::JointProjectionStatus::UnmatchedCamera);
+  for (const auto& point : result.uv) {
+    CHECK(std::isnan(point.x));
+    CHECK(std::isnan(point.y));
+  }
 }
 
 TEST_CASE("project_frame Gt rejects an unknown camera position") {
