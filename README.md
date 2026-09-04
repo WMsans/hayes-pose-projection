@@ -19,6 +19,15 @@ cmake -S . -B build && cmake --build build -j
 ./build/pose-explorer --data data/Pose     # optional debug tool; needs a display
 ```
 
+## Results
+
+The clean-room `--mode both` run compares the centroid look-at projection with
+matched published camera calibration across 20 frames and 14 joints. The mean
+per-frame joint error is **97.29 px**; the worst individual joint error is
+**189.88 px** (frame 1, `RWrist`). The mean camera-orientation error is
+**5.0201°**, with a worst case of **8.4553°** (frame 1). The graded write-up
+and generated coordinate table are delivered in [`report/report.pdf`](report/report.pdf).
+
 ## Credits
 
 Camera calibration from

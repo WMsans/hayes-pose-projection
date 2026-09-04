@@ -46,3 +46,12 @@ add_test(NAME pose_project_supports_both_mode
     -P ${CMAKE_SOURCE_DIR}/tests/check_pose_project_cli.cmake)
 set_tests_properties(pose_project_supports_both_mode PROPERTIES
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+find_program(PDFLATEX_EXECUTABLE pdflatex)
+if(PDFLATEX_EXECUTABLE)
+  add_custom_target(report
+    COMMAND ${PDFLATEX_EXECUTABLE} -interaction=nonstopmode report.tex
+    COMMAND ${PDFLATEX_EXECUTABLE} -interaction=nonstopmode report.tex
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/report
+    COMMENT "Building the write-up PDF")
+endif()
