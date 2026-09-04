@@ -150,6 +150,31 @@ TEST_CASE("project_frame LookAt projects all joints with challenge intrinsics") 
   CHECK(uv[1].y == doctest::Approx(500.0));
 }
 
+TEST_CASE("project_frame optionally applies identified camera distortion") {
+  pose::Frame frame;
+  frame.camera_position = {0.0, 0.0, 0.0};
+  for (auto& joint : frame.joints) joint = {0.0, 0.0, 1000.0};
+  frame.joints[0] = {100.0, 0.0, 1000.0};
+
+  pose::CalibratedCamera camera;
+  camera.center = frame.camera_position;
+  camera.intrinsics.fx = 1000.0;
+  camera.intrinsics.fy = 1000.0;
+  camera.intrinsics.cx = 500.0;
+  camera.intrinsics.cy = 500.0;
+  camera.intrinsics.distortion[0] = 0.1;
+  camera.intrinsics.has_distortion = true;
+  camera.extrinsics.rotation = glm::dmat3(1.0);
+  camera.extrinsics.translation = {0.0, 0.0, 0.0};
+
+  const auto undistorted = pose::project_frame(frame, pose::Mode::Gt, {camera}, 0.0, false);
+  const auto distorted = pose::project_frame(frame, pose::Mode::Gt, {camera}, 0.0, true);
+
+  CHECK(undistorted[0].x == doctest::Approx(600.0));
+  CHECK(distorted[0].x == doctest::Approx(600.1));
+  CHECK(distorted[0].x != doctest::Approx(undistorted[0].x));
+}
+
 TEST_CASE("project_frame Gt uses the identified calibrated camera") {
   pose::Frame frame;
   frame.camera_position = {0.0, 0.0, 0.0};

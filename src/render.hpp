@@ -15,7 +15,8 @@ enum class Mode { LookAt, Gt };
 // Projects all 14 joints of a frame. LookAt uses only challenge-supplied data;
 // Gt uses the published calibration and throws if the camera cannot be identified.
 std::vector<glm::dvec2> project_frame(const Frame& frame, Mode mode,
-                                      const std::vector<CalibratedCamera>& cameras, double focal);
+                                      const std::vector<CalibratedCamera>& cameras, double focal,
+                                      bool apply_distortion = false);
 
 // Offscreen rendering. Requires a GL context; run under xvfb-run if headless.
 void begin_offscreen();

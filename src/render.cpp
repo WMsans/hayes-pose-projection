@@ -81,21 +81,23 @@ class ImageScope {
 }  // namespace
 
 std::vector<glm::dvec2> project_frame(const Frame& frame, Mode mode,
-                                      const std::vector<CalibratedCamera>& cameras, double focal) {
+                                      const std::vector<CalibratedCamera>& cameras, double focal,
+                                      bool apply_distortion) {
   std::vector<glm::dvec2> uv;
   uv.reserve(kJointCount);
 
   if (mode == Mode::LookAt) {
     const auto ext = look_at_extrinsics(frame.camera_position, centroid(frame), {0.0, 0.0, 1.0});
     const auto k = challenge_intrinsics(focal);
-    for (const auto& j : frame.joints) uv.push_back(project(j, ext, k, false));
+    for (const auto& j : frame.joints) uv.push_back(project(j, ext, k, apply_distortion));
     return uv;
   }
 
   const auto* cam = identify(frame.camera_position, cameras, 1.0);
   if (cam == nullptr)
     throw std::runtime_error("no published camera matches this position; use --mode lookat");
-  for (const auto& j : frame.joints) uv.push_back(project(j, cam->extrinsics, cam->intrinsics, false));
+  for (const auto& j : frame.joints)
+    uv.push_back(project(j, cam->extrinsics, cam->intrinsics, apply_distortion));
   return uv;
 }
 
