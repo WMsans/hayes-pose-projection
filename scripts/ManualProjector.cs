@@ -41,6 +41,6 @@ public class ManualProjector : IProjector
 		float u = _focal * x / z + PrincipalPoint;
 		// Image rows count downward while _up points up, so v is subtracted.
 		float v = PrincipalPoint - _focal * y / z;
-		return new Vector2(Mathf.Round(u * 1000.0f) / 1000.0f, Mathf.Round(v * 1000.0f) / 1000.0f);
+		return new Vector2(u, v);
 	}
 }

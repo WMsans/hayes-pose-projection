@@ -36,6 +36,17 @@ public class ManualProjectorTests
 	}
 
 	[Fact]
+	public void ProjectionPreservesUnquantizedCoordinates()
+	{
+		PoseData data = PoseDataTests.Load();
+		ManualProjector projector = new ManualProjector();
+		projector.Begin(data.Frames[19], data.Focal);
+
+		// This value is deliberately below the three-decimal rounding boundary.
+		Assert.Equal(510.034851f, projector.Project(3).X, 5);
+	}
+
+	[Fact]
 	public void EveryJointOfEveryFrameLandsInsideTheImage()
 	{
 		PoseData data = PoseDataTests.Load();
@@ -76,8 +87,8 @@ public class ManualProjectorTests
 		for (int j = 0; j < PoseData.JointCount; j++)
 		{
 			Vector2 p = projector.Project(j);
-			Assert.Equal(expected[j, 0], p.X, 2);
-			Assert.Equal(expected[j, 1], p.Y, 2);
+			Assert.InRange(p.X, expected[j, 0] - 0.001f, expected[j, 0] + 0.001f);
+			Assert.InRange(p.Y, expected[j, 1] - 0.001f, expected[j, 1] + 0.001f);
 		}
 	}
 }
