@@ -7,6 +7,9 @@ public partial class Main : Node
 	public PoseData Data;
 	public PoseFigure Figure;
 	public Camera3D ChallengeCam;
+	public FlyCamera Fly;
+
+	private MeshInstance3D _cameraMarker;
 
 	public override void _Ready()
 	{
@@ -29,6 +32,14 @@ public partial class Main : Node
 		Figure.ShowFrame(Data.Frames[0]);
 		AimChallengeCamera(Data.Frames[0]);
 
+		BuildEnvironment();
+
+		Fly = new FlyCamera();
+		Fly.Name = "FlyCamera";
+		AddChild(Fly);
+		Fly.SnapTo(ChallengeCam);
+		Fly.Current = true;
+
 		string[] args = OS.GetCmdlineUserArgs();
 		for (int i = 0; i < args.Length; i++)
 		{
@@ -47,5 +58,49 @@ public partial class Main : Node
 	{
 		ChallengeCam.Position = frame.CameraGodot;
 		ChallengeCam.LookAt(frame.CentroidGodot, Vector3.Up);
+		if (_cameraMarker != null)
+		{
+			_cameraMarker.Position = frame.CameraGodot;
+		}
+	}
+
+	// A floor grid and a marker at the challenge camera, so the geometry of
+	// part (a) is visible rather than just asserted.
+	public void BuildEnvironment()
+	{
+		ImmediateMesh grid = new ImmediateMesh();
+		StandardMaterial3D lineMaterial = new StandardMaterial3D();
+		lineMaterial.AlbedoColor = new Color(0.75f, 0.75f, 0.78f);
+		lineMaterial.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+		lineMaterial.VertexColorUseAsAlbedo = true;
+
+		grid.SurfaceBegin(Mesh.PrimitiveType.Lines, lineMaterial);
+		for (int i = -10; i <= 10; i++)
+		{
+			float at = i * 0.5f;
+			grid.SurfaceSetColor(new Color(0.75f, 0.75f, 0.78f));
+			grid.SurfaceAddVertex(new Vector3(at, 0.0f, -5.0f));
+			grid.SurfaceAddVertex(new Vector3(at, 0.0f, 5.0f));
+			grid.SurfaceAddVertex(new Vector3(-5.0f, 0.0f, at));
+			grid.SurfaceAddVertex(new Vector3(5.0f, 0.0f, at));
+		}
+		grid.SurfaceEnd();
+
+		MeshInstance3D floor = new MeshInstance3D();
+		floor.Name = "FloorGrid";
+		floor.Mesh = grid;
+		AddChild(floor);
+
+		BoxMesh box = new BoxMesh();
+		box.Size = new Vector3(0.14f, 0.14f, 0.14f);
+		StandardMaterial3D markerMaterial = new StandardMaterial3D();
+		markerMaterial.AlbedoColor = new Color(0.95f, 0.65f, 0.10f);
+		markerMaterial.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+
+		_cameraMarker = new MeshInstance3D();
+		_cameraMarker.Name = "CameraMarker";
+		_cameraMarker.Mesh = box;
+		_cameraMarker.MaterialOverride = markerMaterial;
+		AddChild(_cameraMarker);
 	}
 }
