@@ -1,1 +1,6 @@
 .worktrees/
+.godot/
+bin/
+obj/
+out/
+*.user
