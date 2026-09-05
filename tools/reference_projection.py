@@ -15,6 +15,8 @@ import sys
 TOLERANCE = 0.01
 JOINTS = 14
 PRINCIPAL = 500.0
+METHODS = ("manual_pinhole", "godot_unproject")
+CSV_FIELDS = ["frame", "joint_id", "joint_name", "method", "u", "v"]
 
 
 def load(data_dir):
@@ -83,26 +85,65 @@ def main():
     checked = 0
     worst = 0.0
     failures = []
-    with open(path) as handle:
-        for record in csv.DictReader(handle):
-            key = (int(record["frame"]), int(record["joint_id"]))
-            want_u, want_v = expected[key]
-            du = abs(float(record["u"]) - want_u)
-            dv = abs(float(record["v"]) - want_v)
+    seen = set()
+    with open(path, newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames != CSV_FIELDS:
+            print("expected CSV fields %s, found %s" % (CSV_FIELDS, reader.fieldnames))
+            return 1
+
+        for line_number, record in enumerate(reader, start=2):
+            try:
+                frame = int(record["frame"])
+                joint = int(record["joint_id"])
+                method = record["method"]
+                key = (frame, joint, method)
+                want_u, want_v = expected[(frame, joint)]
+                actual_u = float(record["u"])
+                actual_v = float(record["v"])
+            except (KeyError, TypeError, ValueError) as error:
+                failures.append("line %d is malformed: %s" % (line_number, error))
+                continue
+
+            if method not in METHODS:
+                failures.append("line %d has unexpected method %s" % (line_number, method))
+            elif key in seen:
+                failures.append("line %d duplicates frame %d joint %d method %s"
+                                % (line_number, frame, joint, method))
+            else:
+                seen.add(key)
+
+            du = abs(actual_u - want_u)
+            dv = abs(actual_v - want_v)
             worst = max(worst, du, dv)
             checked += 1
             if du > TOLERANCE or dv > TOLERANCE:
                 failures.append("frame %d joint %d method %s: du=%.4f dv=%.4f"
-                                % (key[0], key[1], record["method"], du, dv))
+                                % (frame, joint, method, du, dv))
 
-    if checked != 2 * len(rows) * JOINTS:
-        print("expected %d rows, checked %d" % (2 * len(rows) * JOINTS, checked))
-        return 1
+    expected_keys = {
+        (frame, joint, method)
+        for frame in range(len(rows))
+        for joint in range(JOINTS)
+        for method in METHODS
+    }
+    missing = sorted(expected_keys - seen)
+    extra = sorted(seen - expected_keys)
+    if missing:
+        failures.append("missing %d expected frame/joint/method rows (first: %s)"
+                        % (len(missing), missing[0]))
+    if extra:
+        failures.append("found %d unexpected frame/joint/method rows (first: %s)"
+                        % (len(extra), extra[0]))
+
+    expected_count = len(expected_keys)
+    if checked != expected_count:
+        failures.append("expected %d rows, checked %d" % (expected_count, checked))
 
     for line in failures:
         print(line)
     if failures:
-        print("FAIL: %d of %d rows disagree" % (len(failures), checked))
+        print("FAIL: %d issue(s) across %d checked rows" % (len(failures), checked))
         return 1
 
     print("OK: %d rows match the reference, worst deviation %.6f px" % (checked, worst))

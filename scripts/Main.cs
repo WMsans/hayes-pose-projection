@@ -110,7 +110,12 @@ public partial class Main : Node
 
 		if (Overlay != null)
 		{
-			Overlay.Photograph = LoadFrameTexture(FrameIndex);
+			// CSV/self-test runs do not render photographs, and headless Godot
+			// does not provide the PNG loader needed by the GUI overlay.
+			if (DisplayServer.GetName() != "headless")
+			{
+				Overlay.Photograph = LoadFrameTexture(FrameIndex);
+			}
 			Overlay.Refresh(ProjectCurrent(Method));
 		}
 	}
