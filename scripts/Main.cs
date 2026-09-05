@@ -29,10 +29,10 @@ public partial class Main : Node
 		ChallengeCam.Near = 0.05f;
 		AddChild(ChallengeCam);
 
+		BuildEnvironment();
+
 		Figure.ShowFrame(Data.Frames[0]);
 		AimChallengeCamera(Data.Frames[0]);
-
-		BuildEnvironment();
 
 		Fly = new FlyCamera();
 		Fly.Name = "FlyCamera";
