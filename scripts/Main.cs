@@ -9,6 +9,7 @@ public partial class Main : Node
 	public Camera3D ChallengeCam;
 	public FlyCamera Fly;
 	public ProjectionOverlay Overlay;
+	public ControlPanel Panel;
 	public bool TwoDimensionalView;
 	public ProjectionMethod Method = ProjectionMethod.ManualPinhole;
 	public int FrameIndex;
@@ -58,10 +59,16 @@ public partial class Main : Node
 		Overlay.Visible = false;
 		_canvas.AddChild(Overlay);
 
+		Panel = new ControlPanel();
+		Panel.Name = "ControlPanel";
+		_canvas.AddChild(Panel);
+
 		ShowFrame(0);
 
 		Fly.SnapTo(ChallengeCam);
 		Fly.Current = true;
+
+		Panel.Build(this);
 
 		string[] args = OS.GetCmdlineUserArgs();
 		for (int i = 0; i < args.Length; i++)
@@ -74,6 +81,12 @@ public partial class Main : Node
 		}
 
 		GD.Print("pose projection: " + Data.Frames.Length + " frames, focal " + Data.Focal);
+	}
+
+	public async System.Threading.Tasks.Task<string> RunExport()
+	{
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		return "export not implemented yet";
 	}
 
 	public void ShowFrame(int index)
