@@ -51,7 +51,7 @@ panel:
 - **Godot unproject** places a `Camera3D` at the same position with a field of
   view derived from the focal length and calls `unproject_position`.
 
-They agree to within 0.0001 px, which is not a coincidence: Godot's perspective
+They agree to within 0.000183 px, the largest measured difference, which is not a coincidence: Godot's perspective
 projection over a viewport of height H with vertical FOV theta gives
 `v = H/2 * (1 - (y/z) / tan(theta/2))`, and with `tan(theta/2) = 500/f` and
 H = 1000 that is exactly `500 - f * y / z`. The panel shows the live difference

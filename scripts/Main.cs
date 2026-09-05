@@ -17,6 +17,9 @@ public partial class Main : Node
 	[Export] public ProjectionMethod DefaultMethod = ProjectionMethod.ManualPinhole;
 
 	private MeshInstance3D _cameraMarker;
+	private MeshInstance3D _cameraAimLine;
+	private ImmediateMesh _cameraAimLineMesh;
+	private StandardMaterial3D _cameraAimLineMaterial;
 	private CanvasLayer _canvas;
 	private ManualProjector _manual = new ManualProjector();
 	private GodotProjector _godot;
@@ -175,6 +178,14 @@ public partial class Main : Node
 		{
 			_cameraMarker.Position = frame.CameraGodot;
 		}
+		if (_cameraAimLineMesh != null)
+		{
+			_cameraAimLineMesh.ClearSurfaces();
+			_cameraAimLineMesh.SurfaceBegin(Mesh.PrimitiveType.Lines, _cameraAimLineMaterial);
+			_cameraAimLineMesh.SurfaceAddVertex(frame.CameraGodot);
+			_cameraAimLineMesh.SurfaceAddVertex(frame.CentroidGodot);
+			_cameraAimLineMesh.SurfaceEnd();
+		}
 	}
 
 	// A floor grid and a marker at the challenge camera, so the geometry of
@@ -215,5 +226,15 @@ public partial class Main : Node
 		_cameraMarker.Mesh = box;
 		_cameraMarker.MaterialOverride = markerMaterial;
 		AddChild(_cameraMarker);
+
+		_cameraAimLineMesh = new ImmediateMesh();
+		_cameraAimLineMaterial = new StandardMaterial3D();
+		_cameraAimLineMaterial.AlbedoColor = new Color(0.95f, 0.65f, 0.10f);
+		_cameraAimLineMaterial.ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded;
+		_cameraAimLine = new MeshInstance3D();
+		_cameraAimLine.Name = "CameraAimLine";
+		_cameraAimLine.Mesh = _cameraAimLineMesh;
+		_cameraAimLine.MaterialOverride = _cameraAimLineMaterial;
+		AddChild(_cameraAimLine);
 	}
 }

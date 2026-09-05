@@ -178,7 +178,16 @@ public partial class ControlPanel : PanelContainer
 	private async void OnExport()
 	{
 		SetStatus("exporting...");
-		string message = await _main.RunExport();
-		SetStatus(message);
+		try
+		{
+			string message = await _main.RunExport();
+			SetStatus(message);
+		}
+		catch (System.Exception error)
+		{
+			string message = "export failed: " + error.Message;
+			SetStatus(message);
+			GD.PrintErr(message);
+		}
 	}
 }

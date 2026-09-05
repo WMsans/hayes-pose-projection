@@ -104,8 +104,23 @@ public class Exporter
 			await _main.ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 			await _main.ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 
+			if (photograph && _main.Overlay.Photograph == null)
+			{
+				throw new IOException("could not load photograph for frame " + f.ToString("00"));
+			}
+
 			Image image = _main.GetViewport().GetTexture().GetImage();
-			image.SavePng(Path.Combine(dir, prefix + f.ToString("00") + ".png"));
+			if (image == null)
+			{
+				throw new IOException("could not capture image for " + prefix + f.ToString("00") + ".png");
+			}
+
+			string path = Path.Combine(dir, prefix + f.ToString("00") + ".png");
+			Error result = image.SavePng(path);
+			if (result != Error.Ok)
+			{
+				throw new IOException("could not save PNG " + path + ": " + result);
+			}
 		}
 	}
 }

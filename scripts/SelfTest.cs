@@ -25,19 +25,31 @@ public static class SelfTest
 
 			for (int j = 0; j < PoseData.JointCount; j++)
 			{
-				Vector2 a = manual.Project(j);
-				Vector2 b = godot.Project(j);
-				float dx = Mathf.Abs(a.X - b.X);
-				float dy = Mathf.Abs(a.Y - b.Y);
+				Vector2 manualPoint = manual.Project(j);
+				Vector2 godotPoint = godot.Project(j);
+				if (!IsFinite(manualPoint) || !IsFinite(godotPoint))
+				{
+					GD.PrintErr("frame " + f + " joint " + j + " produced a non-finite point: manual " + manualPoint + " godot " + godotPoint);
+					failures++;
+					continue;
+				}
+
+				float dx = Mathf.Abs(manualPoint.X - godotPoint.X);
+				float dy = Mathf.Abs(manualPoint.Y - godotPoint.Y);
 				if (dx > Tolerance || dy > Tolerance)
 				{
-					GD.PrintErr("frame " + f + " joint " + j + ": manual " + a + " godot " + b);
+					GD.PrintErr("frame " + f + " joint " + j + ": manual " + manualPoint + " godot " + godotPoint);
 					failures++;
 				}
 
-				if (a.X < 0.0f || a.X > 1000.0f || a.Y < 0.0f || a.Y > 1000.0f)
+				if (!IsInsideImage(manualPoint))
 				{
-					GD.PrintErr("frame " + f + " joint " + j + " is outside the image: " + a);
+					GD.PrintErr("frame " + f + " joint " + j + " manual point is outside the image: " + manualPoint);
+					failures++;
+				}
+				if (!IsInsideImage(godotPoint))
+				{
+					GD.PrintErr("frame " + f + " joint " + j + " Godot point is outside the image: " + godotPoint);
 					failures++;
 				}
 			}
@@ -50,5 +62,17 @@ public static class SelfTest
 		}
 		GD.PrintErr("self-test: " + failures + " failures");
 		return 1;
+	}
+
+	private static bool IsFinite(Vector2 point)
+	{
+		return !float.IsNaN(point.X) && !float.IsInfinity(point.X)
+			&& !float.IsNaN(point.Y) && !float.IsInfinity(point.Y);
+	}
+
+	private static bool IsInsideImage(Vector2 point)
+	{
+		return point.X >= 0.0f && point.X <= 1000.0f
+			&& point.Y >= 0.0f && point.Y <= 1000.0f;
 	}
 }
