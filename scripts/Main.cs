@@ -78,6 +78,15 @@ public partial class Main : Node
 				GetTree().Quit(SelfTest.Run(Data, ChallengeCam, Figure));
 				return;
 			}
+
+			if (args[i] == "--export-csv")
+			{
+				Exporter exporter = new Exporter(this);
+				exporter.WriteTables();
+				GD.Print("wrote tables to " + Exporter.OutputDirectory());
+				GetTree().Quit(0);
+				return;
+			}
 		}
 
 		GD.Print("pose projection: " + Data.Frames.Length + " frames, focal " + Data.Focal);
@@ -85,8 +94,11 @@ public partial class Main : Node
 
 	public async System.Threading.Tasks.Task<string> RunExport()
 	{
-		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-		return "export not implemented yet";
+		Exporter exporter = new Exporter(this);
+		exporter.WriteTables();
+		await exporter.WriteImages();
+		Panel.UpdateReadouts();
+		return "wrote tables and 40 images to " + Exporter.OutputDirectory();
 	}
 
 	public void ShowFrame(int index)
