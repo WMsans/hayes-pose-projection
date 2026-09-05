@@ -40,13 +40,9 @@ public partial class Main : Node
 
 		BuildEnvironment();
 
-		ShowFrame(0);
-
 		Fly = new FlyCamera();
 		Fly.Name = "FlyCamera";
 		AddChild(Fly);
-		Fly.SnapTo(ChallengeCam);
-		Fly.Current = true;
 
 		Method = DefaultMethod;
 		_godot = new GodotProjector(ChallengeCam, Figure);
@@ -61,6 +57,11 @@ public partial class Main : Node
 		Overlay.MouseFilter = Control.MouseFilterEnum.Ignore;
 		Overlay.Visible = false;
 		_canvas.AddChild(Overlay);
+
+		ShowFrame(0);
+
+		Fly.SnapTo(ChallengeCam);
+		Fly.Current = true;
 
 		string[] args = OS.GetCmdlineUserArgs();
 		for (int i = 0; i < args.Length; i++)
@@ -85,6 +86,15 @@ public partial class Main : Node
 		if (Overlay != null)
 		{
 			Overlay.Photograph = LoadFrameTexture(FrameIndex);
+			Overlay.Refresh(ProjectCurrent(Method));
+		}
+	}
+
+	public void SetProjectionMethod(ProjectionMethod method)
+	{
+		Method = method;
+		if (TwoDimensionalView && Overlay != null)
+		{
 			Overlay.Refresh(ProjectCurrent(Method));
 		}
 	}

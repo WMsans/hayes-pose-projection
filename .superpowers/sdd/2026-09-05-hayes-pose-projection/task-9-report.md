@@ -98,3 +98,119 @@ No code concerns found. The only environment limitation was the missing `timeout
 ## Commit
 
 `Draw the projected skeleton in a 2D overlay with both framings` (the report is included in this commit).
+
+## Fix Round 1: Review findings
+
+### Findings fixed
+
+- Moved `ShowFrame(0)` until after `Method`, `_godot`, `Overlay`, and the canvas attachment are initialized. The initial frame now loads `00.png` into `Overlay.Photograph` and refreshes its projected points before the fly camera is snapped.
+- Added `Main.SetProjectionMethod(ProjectionMethod method)`. It updates the public `Method` field and refreshes `Overlay.Points` whenever 2D mode is active. This keeps the existing public field readable for later controls while providing a refresh-safe setter path.
+- Preserved the later startup ordering: `ShowFrame(0)` aims the challenge camera before `Fly.SnapTo(ChallengeCam)`, and the command-line self-test remains after setup.
+
+### TDD focused regression checks
+
+Initial-frame ordering red phase, before the fix:
+
+```text
+initial ShowFrame index=598, overlay add index=1101
+AssertionError: initial ShowFrame must run after overlay creation
+```
+
+After moving the call:
+
+```text
+initial ShowFrame index=1064, overlay add index=1034
+initial overlay ordering: OK
+```
+
+Projection-method refresh-path red phase, before the setter:
+
+```text
+AssertionError: missing projection-method setter
+```
+
+After adding the setter:
+
+```text
+projection method refresh path: OK
+```
+
+### Verification
+
+Covering build:
+
+```bash
+dotnet build PoseProjection.csproj --nologo
+```
+
+Output:
+
+```text
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+```
+
+Existing unit tests:
+
+```bash
+dotnet test tests/PoseProjection.Tests/PoseProjection.Tests.csproj --nologo
+```
+
+Output:
+
+```text
+Passed!  - Failed:     0, Passed:    33, Skipped:     0, Total:    33
+```
+
+Headless asset import prerequisite:
+
+```bash
+godot-mono --headless --path . --editor --quit
+```
+
+Completed with exit code 0. The generated local import metadata is ignored/removed after verification.
+
+Headless self-test:
+
+```bash
+godot-mono --headless --path . -- --self-test
+```
+
+Output:
+
+```text
+self-test: OK, both projectors agree on all 280 points
+headless self-test exit code: 0
+```
+
+Focused smoke/static check:
+
+```text
+focused Task 9 fix smoke/static: OK
+git diff --check: clean
+```
+
+The check confirms the startup order, photograph assignment before overlay refresh, public `Method` API, and active-mode setter refresh guard.
+
+Interactive launch smoke:
+
+```text
+Godot Engine v4.7.2.stable.mono.official.ed1daf0bf
+Metal 4.0 - Forward+ - Using Device #0: Apple - Apple M1 (Apple7)
+pose projection: 20 frames, focal 1148.6
+interactive smoke exit after controlled stop: -15
+```
+
+### Self-review
+
+- [x] Initial frame setup occurs after the overlay and both projectors exist.
+- [x] `Overlay.Photograph` is assigned from frame `00.png` during startup.
+- [x] The setter preserves `public ProjectionMethod Method` and refreshes only an active 2D overlay.
+- [x] Fly-camera snap still follows the initial frame aim.
+- [x] No unrelated tracked files changed.
+- [x] `git diff --check` is clean.
+
+### Concerns
+
+The environment does not provide the `timeout` utility, so direct Godot commands and a controlled Python launch were used. Godot required a one-time editor import before runtime PNG loading; generated `.import`/`.uid` files were removed and are not part of the change.
