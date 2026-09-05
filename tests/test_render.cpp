@@ -1,0 +1,248 @@
+#include <doctest/doctest.h>
+
+#include <cmath>
+#include <cstddef>
+#include <exception>
+#include <filesystem>
+#include <string>
+#include <system_error>
+
+#include <raylib.h>
+
+#include "render.hpp"
+
+namespace {
+
+pose::Frame centered_frame() {
+  pose::Frame frame;
+  frame.camera_position = {0.0, -1000.0, 0.0};
+  for (auto& joint : frame.joints) joint = {0.0, 0.0, 0.0};
+  frame.joints[1].x = 100.0;
+  frame.joints[2].x = -100.0;
+  return frame;
+}
+
+}  // namespace
+
+namespace {
+
+class OptionalOffscreen {
+ public:
+  OptionalOffscreen() {
+    try {
+      pose::begin_offscreen();
+      active_ = true;
+    } catch (const std::exception& e) {
+      reason_ = e.what();
+    }
+  }
+
+  ~OptionalOffscreen() {
+    if (active_) pose::end_offscreen();
+  }
+
+  bool active() const { return active_; }
+  const std::string& reason() const { return reason_; }
+
+ private:
+  bool active_{false};
+  std::string reason_;
+};
+
+std::filesystem::path test_output_directory() {
+  const auto directory = std::filesystem::temp_directory_path() / "hayes-pose-render-tests";
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+  std::filesystem::create_directories(directory);
+  return directory;
+}
+
+}  // namespace
+
+TEST_CASE("render_white writes a 1000x1000 RAYWHITE image for empty input") {
+  OptionalOffscreen offscreen;
+  if (!offscreen.active()) {
+    WARN("skipping optional render test");
+    return;
+  }
+
+  const auto directory = test_output_directory();
+  const auto output = directory / "white.png";
+  pose::render_white({}, output);
+
+  Image image = LoadImage(output.string().c_str());
+  REQUIRE(IsImageValid(image));
+  CHECK(image.width == pose::kImageSize);
+  CHECK(image.height == pose::kImageSize);
+  const Color corner = GetImageColor(image, 0, 0);
+  CHECK(corner.r == RAYWHITE.r);
+  CHECK(corner.g == RAYWHITE.g);
+  CHECK(corner.b == RAYWHITE.b);
+  CHECK(corner.a == RAYWHITE.a);
+  UnloadImage(image);
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("render_white reports an image export failure") {
+  OptionalOffscreen offscreen;
+  if (!offscreen.active()) {
+    WARN("skipping optional render test");
+    return;
+  }
+
+  const auto directory = test_output_directory();
+  const auto output_directory = directory / "not-an-image-file";
+  std::filesystem::create_directory(output_directory);
+  CHECK_THROWS_WITH(pose::render_white({}, output_directory),
+                    doctest::Contains("failed to export render"));
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("render_panel composites equally sized PNGs side by side") {
+  const auto directory = test_output_directory();
+  const auto left_path = directory / "left.png";
+  const auto right_path = directory / "right.png";
+  const auto panel_path = directory / "panel.png";
+
+  Image left = GenImageColor(3, 2, RED);
+  Image right = GenImageColor(3, 2, BLUE);
+  REQUIRE(IsImageValid(left));
+  REQUIRE(IsImageValid(right));
+  REQUIRE(ExportImage(left, left_path.string().c_str()));
+  REQUIRE(ExportImage(right, right_path.string().c_str()));
+  UnloadImage(right);
+  UnloadImage(left);
+
+  pose::render_panel(left_path, right_path, panel_path);
+
+  Image panel = LoadImage(panel_path.string().c_str());
+  REQUIRE(IsImageValid(panel));
+  CHECK(panel.width == 6);
+  CHECK(panel.height == 2);
+  CHECK(GetImageColor(panel, 0, 0).r == RED.r);
+  CHECK(GetImageColor(panel, 0, 0).b == RED.b);
+  CHECK(GetImageColor(panel, 5, 0).r == BLUE.r);
+  CHECK(GetImageColor(panel, 5, 0).b == BLUE.b);
+  UnloadImage(panel);
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("render_overlay skips a missing frame without creating output") {
+  const auto directory = test_output_directory();
+  const auto output = directory / "overlay.png";
+
+  pose::render_overlay({}, directory / "missing.png", output);
+
+  CHECK_FALSE(std::filesystem::exists(output));
+  std::error_code error;
+  std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("project_frame LookAt projects all joints with challenge intrinsics") {
+  const auto uv = pose::project_frame(centered_frame(), pose::Mode::LookAt, {}, 1000.0);
+
+  REQUIRE(uv.size() == pose::kJointCount);
+  CHECK(uv[0].x == doctest::Approx(500.0));
+  CHECK(uv[0].y == doctest::Approx(500.0));
+  CHECK(uv[1].x == doctest::Approx(600.0));
+  CHECK(uv[1].y == doctest::Approx(500.0));
+}
+
+TEST_CASE("project_frame optionally applies identified camera distortion") {
+  pose::Frame frame;
+  frame.camera_position = {0.0, 0.0, 0.0};
+  for (auto& joint : frame.joints) joint = {0.0, 0.0, 1000.0};
+  frame.joints[0] = {100.0, 0.0, 1000.0};
+
+  pose::CalibratedCamera camera;
+  camera.center = frame.camera_position;
+  camera.intrinsics.fx = 1000.0;
+  camera.intrinsics.fy = 1000.0;
+  camera.intrinsics.cx = 500.0;
+  camera.intrinsics.cy = 500.0;
+  camera.intrinsics.distortion[0] = 0.1;
+  camera.intrinsics.has_distortion = true;
+  camera.extrinsics.rotation = glm::dmat3(1.0);
+  camera.extrinsics.translation = {0.0, 0.0, 0.0};
+
+  const auto undistorted = pose::project_frame(frame, pose::Mode::Gt, {camera}, 0.0, false);
+  const auto distorted = pose::project_frame(frame, pose::Mode::Gt, {camera}, 0.0, true);
+
+  CHECK(undistorted[0].x == doctest::Approx(600.0));
+  CHECK(distorted[0].x == doctest::Approx(600.1));
+  CHECK(distorted[0].x != doctest::Approx(undistorted[0].x));
+}
+
+TEST_CASE("project_frame Gt uses the identified calibrated camera") {
+  pose::Frame frame;
+  frame.camera_position = {0.0, 0.0, 0.0};
+  frame.joints[0] = {0.0, 0.0, 1000.0};
+  frame.joints[1] = {100.0, 50.0, 1000.0};
+
+  pose::CalibratedCamera camera;
+  camera.id = "test";
+  camera.center = frame.camera_position;
+  camera.intrinsics.fx = 800.0;
+  camera.intrinsics.fy = 600.0;
+  camera.intrinsics.cx = 320.0;
+  camera.intrinsics.cy = 240.0;
+  camera.extrinsics.rotation = glm::dmat3(1.0);
+  camera.extrinsics.translation = {0.0, 0.0, 0.0};
+
+  for (std::size_t i = 2; i < frame.joints.size(); ++i)
+    frame.joints[i] = {0.0, 0.0, 1000.0};
+
+  const auto uv = pose::project_frame(frame, pose::Mode::Gt, {camera}, 0.0);
+
+  REQUIRE(uv.size() == pose::kJointCount);
+  CHECK(uv[1].x == doctest::Approx(400.0));
+  CHECK(uv[1].y == doctest::Approx(270.0));
+}
+
+TEST_CASE("project_frame_status reports behind-camera joints without aborting the frame") {
+  pose::Frame frame;
+  frame.camera_position = {0.0, 0.0, 0.0};
+  for (auto& joint : frame.joints) joint = {0.0, 0.0, 1000.0};
+  frame.joints[0] = {0.0, 0.0, -1.0};
+  frame.joints[1].x = 1.0;
+
+  const auto result = pose::project_frame_status(frame, pose::Mode::LookAt, {}, 0.0, false);
+
+  REQUIRE(result.uv.size() == pose::kJointCount);
+  CHECK(result.camera_matched);
+  CHECK(result.invalid_joint_count() == 1);
+  CHECK(result.joint_status[0] == pose::JointProjectionStatus::BehindCamera);
+  CHECK(result.joint_status[1] == pose::JointProjectionStatus::Valid);
+  CHECK(std::isnan(result.uv[0].x));
+  CHECK_FALSE(std::isnan(result.uv[1].x));
+}
+
+TEST_CASE("project_frame_status reports an unmatched GT camera without guessing") {
+  pose::Frame frame;
+  frame.camera_position = {100.0, 0.0, 0.0};
+  for (auto& joint : frame.joints) joint = {0.0, 0.0, 1000.0};
+
+  const auto result = pose::project_frame_status(frame, pose::Mode::Gt, {}, 0.0, true);
+
+  REQUIRE(result.uv.size() == pose::kJointCount);
+  CHECK_FALSE(result.camera_matched);
+  CHECK(result.invalid_joint_count() == pose::kJointCount);
+  for (const auto status : result.joint_status)
+    CHECK(status == pose::JointProjectionStatus::UnmatchedCamera);
+  for (const auto& point : result.uv) {
+    CHECK(std::isnan(point.x));
+    CHECK(std::isnan(point.y));
+  }
+}
+
+TEST_CASE("project_frame Gt rejects an unknown camera position") {
+  pose::Frame frame;
+  frame.camera_position = {100.0, 0.0, 0.0};
+  for (auto& joint : frame.joints) joint = {0.0, 0.0, 1000.0};
+
+  CHECK_THROWS_WITH(pose::project_frame(frame, pose::Mode::Gt, {}, 0.0),
+                    "no published camera matches this position; use --mode lookat");
+}

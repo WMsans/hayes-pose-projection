@@ -1,0 +1,240 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,graphicx,booktabs,longtable,hyperref,subcaption}
+\graphicspath{{../out/}}
+
+\title{Projecting 3D Human Poses onto 2D Images}
+\author{Jeremy}
+\date{September 3, 2026}
+
+\begin{document}
+\maketitle
+
+\section{The task and the data}
+The input is a small Human3.6M-style sample \cite{h36m}: \texttt{data/Pose/poses.txt}
+contains 20 non-empty rows, and every row has 45 whitespace-separated values.
+The first three values are the camera position $(C_x,C_y,C_z)$ in millimetres.
+The remaining 42 values are fourteen $(x,y,z)$ joint positions, also in
+millimetres.  The joint order is given by \texttt{joint-names.txt}: Hip,
+RHip, RKnee, RAnkle, LHip, LKnee, LAnkle, Neck, LUpperArm, LElbow, LWrist,
+RUpperArm, RElbow, and RWrist.  Thus the program treats the input as 20
+frames of a 14-joint skeleton, rather than as image-space measurements.
+
+The supplied photographs are 1000 by 1000 pixels.  The challenge also supplies
+one scalar focal length, $f=1148.6$, in \texttt{focal.txt}.  For the challenge
+projection I use square intrinsics with $f_x=f_y=f$ and principal point
+$(c_x,c_y)=(500,500)$ pixels.  The output contains one white-background render,
+one photograph overlay, and one side-by-side panel for each of the 20 frames,
+plus a generated CSV and LaTeX coordinate table.  Vector and matrix operations
+use the header-only GLM library \cite{glm}, while the vendored calibration JSON
+is parsed with nlohmann/json \cite{json}.
+
+\section{Identifying the cameras}
+The camera position column has only four distinct positions.  Each position
+occurs exactly five times, so the 20 frames can be grouped into four camera
+views without estimating a new camera for every pose.  Matching is by Euclidean
+ distance in millimetres against the centers reconstructed from the vendored
+published calibration \cite{calib}, with a tolerance of 1 mm.  The resulting assignment is:
+
+\begin{center}
+\begin{tabular}{l l l}
+\toprule
+Calibration camera & Frames & Center $(x,y,z)$ in mm\\
+\midrule
+54138969 & 4, 12, 13, 14, 17 & $(1841.107,\ 4955.285,\ 1563.445)$\\
+55011271 & 0, 2, 5, 7, 9 & $(1761.279,\ -5078.007,\ 1606.265)$\\
+58860488 & 1, 3, 16, 18, 19 & $(-1846.778,\ 5215.047,\ 1491.972)$\\
+60457274 & 6, 8, 10, 11, 15 & $(-1794.790,\ -3722.699,\ 1574.893)$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For an extrinsic matrix represented as camera-space point
+$X_c=RX_w+t$, the center is $C=-R^Tt$.  This is the quantity compared with
+the position in each pose row.  The four matches are therefore a direct
+identification of the supplied views, not an optimization based on the
+skeleton shape.
+
+\section{(a) Choosing a camera orientation}
+For the challenge-only orientation, the eye is the row's camera position and
+the target is the centroid of its fourteen joints.  With the deterministic
+world-up vector $u_w=(0,0,1)$, I construct
+\[
+ f=\frac{T-E}{\lVert T-E\rVert},\qquad
+ r=\frac{f\times u_w}{\lVert f\times u_w\rVert},\qquad
+ u=r\times f.
+\]
+The rotation stores the camera basis as rows: right, negative up, and forward.
+The negative-up row makes increasing image $v$ point down, as it does in the
+input photographs.  Translation is $t=-RE$, so the complete transform is
+$X_c=R X_w-RE$.
+
+A target direction alone determines where the camera looks, but not its roll.
+Any rotation of the image plane around $f$ preserves the viewing ray and changes
+the projected vertical and horizontal axes.  Choosing the global $z$ axis as
+world-up is consequently a convention, not information recovered from the
+pose.  It is useful here because it is deterministic and produces a stable
+upright image for these views; the implementation rejects the degenerate case
+where the view direction is parallel to this axis.  The measured angular
+comparison below quantifies the cost of this simple convention relative to the
+published orientations.
+
+\section{(b) Projection and the 20 renders}
+Every world joint is first transformed to camera coordinates.  Points with
+$z\leq0$ are rejected.  For the undistorted pinhole projection, the normalized
+coordinates and pixels are
+\[
+ x_n=\frac{X_c}{Z_c},\qquad y_n=\frac{Y_c}{Z_c},\qquad
+ u=f_xx_n+c_x,\qquad v=f_yy_n+c_y.
+\]
+The look-at mode uses the challenge intrinsics stated above.  The reference
+mode uses the matched camera's published $R,t$ and camera-specific intrinsic
+matrix.  The command used for these artifacts is \texttt{--mode both}; it
+writes the undistorted look-at skeleton to the white image and writes the
+published-calibration projection, with distortion enabled, over the
+photograph using raylib's rendering API \cite{raylib}.  It then combines those two
+images into a panel, preserving a direct visual comparison.
+
+\begin{figure}[htbp]
+\centering
+  \includegraphics[width=0.18\textwidth]{white/00.png}
+  \includegraphics[width=0.18\textwidth]{white/01.png}
+  \includegraphics[width=0.18\textwidth]{white/02.png}
+  \includegraphics[width=0.18\textwidth]{white/03.png}
+  \includegraphics[width=0.18\textwidth]{white/04.png}\\[2pt]
+  \includegraphics[width=0.18\textwidth]{white/05.png}
+  \includegraphics[width=0.18\textwidth]{white/06.png}
+  \includegraphics[width=0.18\textwidth]{white/07.png}
+  \includegraphics[width=0.18\textwidth]{white/08.png}
+  \includegraphics[width=0.18\textwidth]{white/09.png}\\[2pt]
+  \includegraphics[width=0.18\textwidth]{white/10.png}
+  \includegraphics[width=0.18\textwidth]{white/11.png}
+  \includegraphics[width=0.18\textwidth]{white/12.png}
+  \includegraphics[width=0.18\textwidth]{white/13.png}
+  \includegraphics[width=0.18\textwidth]{white/14.png}\\[2pt]
+  \includegraphics[width=0.18\textwidth]{white/15.png}
+  \includegraphics[width=0.18\textwidth]{white/16.png}
+  \includegraphics[width=0.18\textwidth]{white/17.png}
+  \includegraphics[width=0.18\textwidth]{white/18.png}
+  \includegraphics[width=0.18\textwidth]{white/19.png}
+  \caption{All 20 look-at projected skeletons on white backgrounds, frames 00 through 19.}
+\end{figure}
+
+All 20 white renders, overlays, and panels are generated from the same run.
+The white images make the coordinate convention and skeleton connectivity
+visible without photograph texture; the overlay images test the calibration
+projection in the original image coordinate system.
+
+\section{(c) Superimposing on the photographs}
+The overlay uses the matched published camera calibration, including its
+extrinsic orientation, camera-specific intrinsic matrix, and distortion
+coefficients.  The result is composited over the corresponding 1000 by 1000
+source frame, and the panel places that overlay beside the challenge look-at
+render.  The first panel
+is shown below; the remaining 19 panels are generated alongside it in
+\texttt{out/panel/}.
+
+\begin{figure}[htbp]
+\centering
+  \includegraphics[width=0.9\textwidth]{panel/00.png}
+  \caption{Frame 00: published-calibration overlay beside the white-background
+  look-at projection.}
+\end{figure}
+
+\section{Error analysis}
+The generated \texttt{out/analysis/joint-error.csv} compares the look-at and
+reference pixel coordinates for all 20 frames and all 14 joints.  Its
+\texttt{mean\_px} column is the mean of the 14 joint distances for one frame;
+\texttt{max\_px} records that frame's largest joint distance.  Averaging the
+20 reported frame means gives $97.0305$ pixels, or $97.03$ pixels to the
+precision retained in the report.  The worst individual error is $188.26$
+pixels, at frame 1, camera 58860488, joint 2 (RKnee).  Frame 1 also has the
+largest frame mean, $187.04$ pixels.  These are measured values from the fresh
+clean-room output, not values inferred from the images.
+
+The same run writes the spec-required
+\texttt{out/analysis/camera-angular-error.csv}.  Averaging its 20 angular
+values gives $5.020115^\circ$ ($5.0201^\circ$ rounded); the maximum is
+$8.4553^\circ$ at frame 1.  This is the relative rotation angle between the
+look-at matrix and the matched published matrix.  The relatively large pixel
+error in frame 1 is consistent with its largest orientation discrepancy, but
+pixel error also includes differences in intrinsics and in the camera-space
+location of each joint.
+
+There is a systematic principal-point and focal-length effect in addition to
+orientation.  The look-at construction uses $(500,500)$ and the single
+challenge focal, whereas the published cameras have distinct calibration
+matrices (their principal points are not all $(500,500)$ and their focal
+values are not identical).  A common pixel translation can therefore remain
+even when the viewing direction is visually plausible; the perspective scale
+also changes with focal length.  The per-camera frame-mean averages illustrate
+that the mismatch is view-dependent: 56.97 px for camera 60457274, 78.09 px
+for 55011271, 95.74 px for 54138969, and 157.32 px for 58860488.
+
+The generated batch comparison applies no distortion to look-at coordinates,
+because the challenge data provides no distortion model, and applies the
+published distortion coefficients to every ground-truth coordinate used for
+the overlay, coordinate table, and error analysis.  Thus the reported pixel
+errors compare the actual two batch outputs rather than an undistorted GT
+intermediate.
+
+\section{The consolidated coordinate table}
+The following table is generated by the executable, rather than copied into
+the report.  It contains 20 $\times$ 14 = 280 rows and records frame, matched
+camera, joint index/name, and both $(u,v)$ pairs.  Including it with
+\verb|\input| keeps the report synchronized with the CSV and makes the exact
+rounded coordinates available for inspection.
+
+\input{../out/coords/all-2d-coordinates.tex}
+
+\appendix
+\section{Interactive explorer}
+No explorer screenshot is included in this clean-room artifact set: the
+optional interactive export was not available without inventing or committing
+a generated image.  The explorer remains a read-only debugging tool; the
+batch renders and numerical tables do not depend on it.
+
+\section{Limitations and references}
+The look-at camera is intentionally a simple construction.  It assumes that
+the joint centroid is the desired target and that the global $z$ direction is
+the correct up convention; neither assumption is learned from the photographs.
+The roll is therefore a justified deterministic choice, not a recovered
+calibration parameter.  Camera identification also depends on the supplied
+positions matching the vendored calibration within the fixed 1 mm tolerance.
+
+Most importantly, \texttt{focal.txt} supplies one focal length for the
+challenge projection even though four cameras are present.  Treating 1148.6 as
+valid for all four views is required to make the challenge-mode output
+reproducible, but it cannot reproduce the camera-specific focal lengths and
+principal points in the published calibration.  The reported pixel error is
+thus an evaluation of this stated approximation, including published GT
+distortion, not a claim that the look-at model is a replacement for full
+calibration.  If a frame's camera position is unmatched, the batch keeps its
+look-at render, omits the GT overlay and comparison row, and records an
+\texttt{unmatched-camera} status in \texttt{projection-status.csv}; no camera
+is guessed.  Likewise, joints at or behind the image plane are omitted from
+rendering and identified by a per-frame \texttt{behind-camera} count.  Finally,
+rendering uses an off-screen OpenGL context; a headless Linux run needs a
+provider such as \texttt{xvfb-run}, while the numerical tests and projection
+code do not depend on a display.  The interactive explorer uses raygui for its
+controls \cite{raygui}, and the C++ regression suite uses doctest \cite{doctest}.
+
+\begin{thebibliography}{99}
+\bibitem{h36m} C.\ Ionescu et al., ``Human3.6M: Large Scale Datasets and
+  Predictive Methods for 3D Human Sensing in Natural Environments,''
+  IEEE TPAMI, 2014.
+\bibitem{calib} K.\ Iskakov, \emph{human36m-camera-parameters}, MIT licence,
+  \url{https://github.com/karfly/human36m-camera-parameters}.
+\bibitem{raylib} R.\ Santamaria, \emph{raylib}, version 5.5,
+  \url{https://www.raylib.com}.
+\bibitem{raygui} R.\ Santamaria, \emph{raygui}, version 4.0,
+  \url{https://github.com/raysan5/raygui}.
+\bibitem{glm} G-Truc Creation, \emph{OpenGL Mathematics (GLM)}, version 1.0.1,
+  \url{https://github.com/g-truc/glm}.
+\bibitem{json} N.\ Lohmann, \emph{JSON for Modern C++}, version 3.11.3,
+  \url{https://github.com/nlohmann/json}.
+\bibitem{doctest} V.\ Kirilov, \emph{doctest}, version 2.4.11,
+  \url{https://github.com/doctest/doctest}.
+\end{thebibliography}
+
+\end{document}
