@@ -13,6 +13,7 @@
     <Compile Include="../../scripts/IProjector.cs" />
     <Compile Include="../../scripts/ManualProjector.cs" />
     <Compile Include="../../scripts/Bones.cs" />
+    <Compile Include="../../scripts/Framing.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
