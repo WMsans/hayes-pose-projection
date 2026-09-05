@@ -137,3 +137,54 @@ No code concerns found. The only limitations are environmental: the shell lacks 
 ## Commit
 
 `Export the coordinate tables and the projection and overlay images`
+
+## Fix report: round 1
+
+### Status
+
+Fixed the review findings in `scripts/Exporter.cs`. `WriteImages` now saves the panel's prior visibility and restores it, along with the overlay mode, photograph flag, frame, and view mode, from a `finally` block when capture or PNG writing fails.
+
+### Covering regression check
+
+- `test_write_images_restores_panel_visibility_and_state_on_failure_path`
+- Red before the fix: `python3 /tmp/test_exporter_state_restoration.py` failed because the panel visibility snapshot was absent.
+- Green after the fix: same command printed `PASS: exporter state-restoration regression check`.
+
+### Verification
+
+```text
+$ dotnet build PoseProjection.csproj --nologo
+Build succeeded. 0 Warning(s), 0 Error(s)
+
+$ dotnet test tests/PoseProjection.Tests/PoseProjection.Tests.csproj --nologo
+Passed! - Failed: 0, Passed: 33, Skipped: 0, Total: 33
+
+$ godot-mono --editor --headless --path . --quit
+exit 0; imported the frame PNG assets (generated import metadata removed before commit)
+
+$ godot-mono --headless --path . -- --self-test
+self-test: OK, both projectors agree on all 280 points
+
+$ godot-mono --headless --path . -- --export-csv
+wrote tables to .../out
+21 out/coords_wide.csv
+561 out/coords_long.csv
+21 out/method_agreement.csv
+29
+0.000183
+
+$ git diff --check
+clean
+```
+
+The CSV checks match the required 21/561/21 row counts, 29 wide-header fields, and less than 0.01 px maximum method difference.
+
+### Self-review
+
+- Confirmed the temporary image-export state is captured before mutation.
+- Confirmed cleanup is in `finally` and restores the exact prior panel visibility rather than forcing visibility on.
+- Confirmed the required table, build, unit-test, self-test, and headless CSV behavior remains unchanged.
+
+### Concerns
+
+Interactive image capture and an injected PNG-write failure were not exercised because this environment has no graphical display or GUI automation. The focused regression check verifies the required save/`finally` structure; headless build, unit, self-test, and CSV checks passed.

@@ -67,20 +67,26 @@ public class Exporter
 		bool wasTwoD = _main.TwoDimensionalView;
 		ViewFraming wasMode = _main.Overlay.Mode;
 		bool wasPhoto = _main.Overlay.ShowPhotograph;
+		bool wasPanelVisible = _main.Panel.Visible;
 		int restore = _main.FrameIndex;
 
-		// The panel would otherwise be baked into every exported image.
-		_main.Panel.Visible = false;
-		_main.SetTwoDimensionalView(true);
+		try
+		{
+			// The panel would otherwise be baked into every exported image.
+			_main.Panel.Visible = false;
+			_main.SetTwoDimensionalView(true);
 
-		await Capture(dir, "proj_", ViewFraming.FitToPose, false);
-		await Capture(dir, "overlay_", ViewFraming.ImagePixels, true);
-
-		_main.Overlay.Mode = wasMode;
-		_main.Overlay.ShowPhotograph = wasPhoto;
-		_main.ShowFrame(restore);
-		_main.SetTwoDimensionalView(wasTwoD);
-		_main.Panel.Visible = true;
+			await Capture(dir, "proj_", ViewFraming.FitToPose, false);
+			await Capture(dir, "overlay_", ViewFraming.ImagePixels, true);
+		}
+		finally
+		{
+			_main.Overlay.Mode = wasMode;
+			_main.Overlay.ShowPhotograph = wasPhoto;
+			_main.ShowFrame(restore);
+			_main.SetTwoDimensionalView(wasTwoD);
+			_main.Panel.Visible = wasPanelVisible;
+		}
 	}
 
 	private async Task Capture(string dir, string prefix, ViewFraming mode, bool photograph)
