@@ -1,0 +1,19 @@
+config_version=5
+
+[application]
+
+config/name="Hayes Pose Projection"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.4", "C#")
+
+[display]
+
+window/size/viewport_width=1000
+window/size/viewport_height=1000
+window/size/resizable=false
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[dotnet]
+
+project/assembly_name="PoseProjection"
