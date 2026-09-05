@@ -19,7 +19,8 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="GodotSharp">
-      <HintPath>/usr/lib/godot-mono/GodotSharp/Api/Release/GodotSharp.dll</HintPath>
+      <HintPath Condition="Exists('/Applications/Godot_mono.app/Contents/Resources/GodotSharp/Api/Release/GodotSharp.dll')">/Applications/Godot_mono.app/Contents/Resources/GodotSharp/Api/Release/GodotSharp.dll</HintPath>
+      <HintPath Condition="!Exists('/Applications/Godot_mono.app/Contents/Resources/GodotSharp/Api/Release/GodotSharp.dll')">/usr/lib/godot-mono/GodotSharp/Api/Release/GodotSharp.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>
