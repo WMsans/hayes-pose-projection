@@ -8,8 +8,17 @@ public partial class Main : Node
 	public PoseFigure Figure;
 	public Camera3D ChallengeCam;
 	public FlyCamera Fly;
+	public ProjectionOverlay Overlay;
+	public bool TwoDimensionalView;
+	public ProjectionMethod Method = ProjectionMethod.ManualPinhole;
+	public int FrameIndex;
+
+	[Export] public ProjectionMethod DefaultMethod = ProjectionMethod.ManualPinhole;
 
 	private MeshInstance3D _cameraMarker;
+	private CanvasLayer _canvas;
+	private ManualProjector _manual = new ManualProjector();
+	private GodotProjector _godot;
 
 	public override void _Ready()
 	{
@@ -31,14 +40,27 @@ public partial class Main : Node
 
 		BuildEnvironment();
 
-		Figure.ShowFrame(Data.Frames[0]);
-		AimChallengeCamera(Data.Frames[0]);
+		ShowFrame(0);
 
 		Fly = new FlyCamera();
 		Fly.Name = "FlyCamera";
 		AddChild(Fly);
 		Fly.SnapTo(ChallengeCam);
 		Fly.Current = true;
+
+		Method = DefaultMethod;
+		_godot = new GodotProjector(ChallengeCam, Figure);
+
+		_canvas = new CanvasLayer();
+		_canvas.Name = "Canvas";
+		AddChild(_canvas);
+
+		Overlay = new ProjectionOverlay();
+		Overlay.Name = "Overlay";
+		Overlay.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+		Overlay.MouseFilter = Control.MouseFilterEnum.Ignore;
+		Overlay.Visible = false;
+		_canvas.AddChild(Overlay);
 
 		string[] args = OS.GetCmdlineUserArgs();
 		for (int i = 0; i < args.Length; i++)
@@ -51,6 +73,57 @@ public partial class Main : Node
 		}
 
 		GD.Print("pose projection: " + Data.Frames.Length + " frames, focal " + Data.Focal);
+	}
+
+	public void ShowFrame(int index)
+	{
+		FrameIndex = Mathf.Clamp(index, 0, Data.Frames.Length - 1);
+		PoseFrame frame = Data.Frames[FrameIndex];
+		Figure.ShowFrame(frame);
+		AimChallengeCamera(frame);
+
+		if (Overlay != null)
+		{
+			Overlay.Photograph = LoadFrameTexture(FrameIndex);
+			Overlay.Refresh(ProjectCurrent(Method));
+		}
+	}
+
+	public Vector2[] ProjectCurrent(ProjectionMethod method)
+	{
+		PoseFrame frame = Data.Frames[FrameIndex];
+		IProjector projector = _manual;
+		if (method == ProjectionMethod.GodotUnproject)
+		{
+			projector = _godot;
+		}
+		projector.Begin(frame, Data.Focal);
+
+		Vector2[] points = new Vector2[PoseData.JointCount];
+		for (int j = 0; j < points.Length; j++)
+		{
+			points[j] = projector.Project(j);
+		}
+		return points;
+	}
+
+	public void SetTwoDimensionalView(bool on)
+	{
+		TwoDimensionalView = on;
+		Overlay.Visible = on;
+		ChallengeCam.Current = on;
+		Fly.Current = !on;
+		if (on)
+		{
+			Input.MouseMode = Input.MouseModeEnum.Visible;
+		}
+		Overlay.Refresh(ProjectCurrent(Method));
+	}
+
+	public static Texture2D LoadFrameTexture(int index)
+	{
+		string path = "res://data/frames/" + index.ToString("00") + ".png";
+		return GD.Load<Texture2D>(path);
 	}
 
 	// Challenge part (a): aim at the subject with no roll.
